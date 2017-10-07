@@ -12,7 +12,10 @@ if not ie then
 end
 
 -- requires library for db access
-ie.require("lsqlite3")
+local _sql = ie.require("lsqlite3")
+-- don't allow other mods to use the global library!
+if sqlite3 then sqlite3 = {} end
+
 local singleplayer = minetest.is_singleplayer()
 
 -- multiplayer unless you restart it.
@@ -22,11 +25,11 @@ and singleplayer then
   return
 end
 
-local db = sqlite3.open(WP.."/sauth.sqlite") -- connection
+local db = _sql.open(WP.."/sauth.sqlite") -- connection
 
 -- db:exec wrapper for error reporting
 local function db_exec(stmt)
-  if db:exec(stmt) ~= sqlite3.OK then
+  if db:exec(stmt) ~= _sql.OK then
     minetest.log("info", "Sqlite ERROR:  ", db:errmsg())
   end
 end
