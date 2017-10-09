@@ -14,7 +14,7 @@ end
 -- requires library for db access
 local _sql = ie.require("lsqlite3")
 -- don't allow other mods to use the global library!
-if sqlite3 then sqlite3 = {} end
+if sqlite3 then sqlite3 = nil end
 
 local singleplayer = minetest.is_singleplayer()
 
