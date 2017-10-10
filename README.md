@@ -2,12 +2,28 @@
 
 An alternative auth handler for minetest using SQLite.
 
-Requires lsqlite3 lua library. (http://lua.sqlite.org/)
+Requires: 
 
-I suggest you use luarocks(https://luarocks.org/) to install it.
+* lsqlite3 lua library. (http://lua.sqlite.org/)
+* SQLite3 (only needed for importing large auth.txt files)
 
-If you are running mod security(recommended) you will need to add this to the list of trusted mods.
-This mod will import your existing auth.txt and rename the file to auth.old. It's not required for multiplayer games.
+I suggest you use luarocks(https://luarocks.org/) to install lsqlite3.
+
+If the target server runs mods in secure mode[recommended], you must add sauth
+to the list of trusted mods in minetest.conf:
+
+	secure.trusted_mods = sauth
+
+This mod will import your existing auth.txt if the records contained within are less than 360, otherwise it exports block
+INSERT statememnts to auth.sql file in the world folder. I recommend you import auth.sql with sqlite3 (https://www.sqlite.org/),
+using the commands:
+
+    .open sauth.sqlite
+    .read auth.sql
+    .exit
+
+Either way it will rename the original auth.txt to auth.txt.bak as it is not required for multiplayer games.
+
 To enable the mod for singleplayer add:
 
 ```sauth.enable_singleplayer = true```
