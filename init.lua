@@ -85,10 +85,10 @@ local function add_record(name, password, privs, last_login)
 	db_exec(stmt)
 end
 
-local function add_setting(column)
+local function add_setting(column, val)
 	local stmt = ([[
-		INSERT INTO _s (%s) VALUES ('true')
-	]]):format(column)
+		INSERT INTO _s (%s) VALUES ('%s')
+	]]):format(column, val)
 	db_exec(stmt)
 end
 
@@ -207,15 +207,70 @@ sauth.auth_handler = {
 ########################
 ]]
 
--- Utilising loaded data, manage auth import
+-- manage import/export dependant on size
 if get_setting("import") == nil then
-	for name, stuff in pairs(core.auth_table) do
-        	local privs = minetest.privs_to_string(stuff.privileges)
-        	add_record(name,stuff.password,privs,stuff.last_login)
+
+	local function save_sql(stmt)
+		-- save file
+		local file = ie.io.open(WP.."/auth.sql", "a")
+		if file then
+			file:write(stmt)
+			file:close()
+		end
 	end
-	ie.os.rename(WP.."/auth.txt", WP.."/auth.old") -- file not required!
-	add_setting("import") -- set flag
-	minetest.notify_authentication_modified()
+
+	local function del_sql()
+		ie.os.remove(WP.."/auth.sql")
+	end
+
+	local function export_auth()
+		local file, errmsg = ie.io.open(WP.."/auth.txt", 'rb')
+		if not file then
+			minetest.log("info", WP.."/auth.txt".." could not be opened for reading ("..errmsg..")")
+			return
+		end
+		del_sql()
+		local index = 1
+		local stmt = create_db.."BEGIN;\n"
+		for line in file:lines() do
+			if line ~= "" then
+				local fields = line:split(":", true)
+				local name, password, privs, last_login = unpack(fields)
+				last_login = tonumber(last_login)
+				if not (name and password and privs) then
+					break -- can't use bad data
+				end
+				stmt = stmt..("INSERT INTO auth VALUES ('%s','%s','%s','%s','%s');\n"
+				):format(index, name, password, privs, last_login)
+				save_sql(stmt)
+				stmt = ""
+				index = index + 1
+			end
+		end
+		stmt = "UPDATE _s (import) VALUES ('true');\n"
+		ie.io.close(file)
+		save_sql(stmt.."END;\n")
+		add_setting("import", false)
+	end
+
+	local function db_import()
+		for name, stuff in pairs(core.auth_table) do
+			local privs = minetest.privs_to_string(stuff.privileges)
+			add_record(name,stuff.password,privs,stuff.last_login)
+			add_setting("import", true) -- set db flag
+		end
+	end
+	-- limit direct transfer to a sensible ~1 minute
+	if #core.auth_table < 360 then db_import() end
+	-- are we there yet?
+	if get_setting("import") == false then
+		-- dump to sql
+		export_auth()
+	end
+	-- rename auth.txt otherwise it will still load!
+	ie.os.rename(WP.."/auth.txt", WP.."/auth.txt.bak")
+	core.auth_table = {} -- clear
+	core.notify_authentication_modified()
 end
 
 --[[
