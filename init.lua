@@ -138,9 +138,7 @@ sauth.auth_handler = {
 	if r == nil then
 		r = get_record(name)
 	else
-		if auth_table[name].privileges ~= nil then
-			return auth_table[name]		
-		end		
+		return auth_table[name]				
 	end
 	-- If not in authentication table, return nil
 	if not r then return nil end
@@ -175,7 +173,7 @@ sauth.auth_handler = {
 		add_record(name,password,privs,ts)
 		auth_table[name] = {
 			password = password,
-			privileges = privs,
+			privileges = minetest.string_to_privs(privs),
 			last_login = ts}
 		return true
 	end,
