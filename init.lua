@@ -138,7 +138,9 @@ sauth.auth_handler = {
 	if r == nil then
 		r = get_record(name)
 	else
-		return auth_table[name]		
+		if auth_table[name].privileges ~= nil then
+			return auth_table[name]		
+		end		
 	end
 	-- If not in authentication table, return nil
 	if not r then return nil end
