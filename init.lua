@@ -152,8 +152,7 @@ sauth.auth_handler = {
 				if (singleplayer and def.give_to_singleplayer) or admin then
 					privs[priv] = true
 				end
-			end
-			sauth.auth_handler.set_privileges(name, privs)			
+			end			
 	else
 		privs = minetest.string_to_privs(r.privileges)
 	end
