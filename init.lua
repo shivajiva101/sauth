@@ -137,6 +137,8 @@ sauth.auth_handler = {
 	-- check if db record needs to be loaded
 	if r == nil then
 		r = get_record(name)
+	else
+		return auth_table[name]		
 	end
 	-- If not in authentication table, return nil
 	if not r then return nil end
@@ -144,12 +146,14 @@ sauth.auth_handler = {
 	local privs = {}
 	if singleplayer or admin then
 			-- If admin, grant all privs, if singleplayer
-			-- grant all privs w/ give_to_singleplayer
+			-- grant all privs with give_to_singleplayer
+			-- save privs to speed up caching
 			for priv, def in pairs(core.registered_privileges) do
 				if (singleplayer and def.give_to_singleplayer) or admin then
 					privs[priv] = true
 				end
 			end
+			sauth.auth_handler.set_privileges(name, privs)			
 	else
 		privs = minetest.string_to_privs(r.privileges)
 	end
