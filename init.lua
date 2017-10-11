@@ -1,10 +1,12 @@
 -- sauth mod for minetest voxel game
 -- by shivajiva101@hotmail.com
 
+-- expose handler functions
+sauth = {}
+local auth_table = {}
 local MN = minetest.get_current_modname()
 local WP = minetest.get_worldpath()
 local ie = minetest.request_insecure_environment()
-sauth = {}
 
 if not ie then
 	error("insecure environment inaccessible"..
@@ -131,7 +133,11 @@ sauth.auth_handler = {
 	get_auth = function(name)
 	-- return password,privileges,last_login
 	assert(type(name) == 'string')
-	local r = get_record(name)
+	local r = auth_table[name]
+	-- check if db record needs to be loaded
+	if r == nil then
+		r = get_record(name)
+	end
 	-- If not in authentication table, return nil
 	if not r then return nil end
 	local admin = (name == minetest.setting_get("name"))
@@ -147,11 +153,13 @@ sauth.auth_handler = {
 	else
 		privs = minetest.string_to_privs(r.privileges)
 	end
-	return {
+	local record = {
 		password = r.password,
 		privileges = privs,
 		last_login = tonumber(r.last_login)
 		}
+	if not auth_table[name] then auth_table[name] = record end
+	return record
 	end,
 	create_auth = function(name, password)
 		assert(type(name) == 'string')
@@ -160,11 +168,16 @@ sauth.auth_handler = {
 		local ts = os.time()
 		local privs = minetest.settings:get("default_privs")
 		add_record(name,password,privs,ts)
+		auth_table[name] = {
+			password = password,
+			privileges = privs,
+			last_login = ts}
 		return true
 	end,
 	delete_auth = function(name)
 		assert(type(name) == 'string')
-		del_record(name)
+		-- prevent removal if player is online
+		if auth_table[name] == nil then del_record(name) end
 		return true
 	end,
 	set_password = function(name, password)
@@ -172,9 +185,10 @@ sauth.auth_handler = {
 		assert(type(password) == 'string')
 		-- get player record
 		if get_record(name) == nil then
-			sauth.builtin_auth_handler.create_auth(name, password)
+			sauth.auth_handler.create_auth(name, password)
 		else
 			update_password(name,password)
+			auth_table[name].password = password
 		end
 		return true
 	end,
@@ -188,6 +202,7 @@ sauth.auth_handler = {
 					minetest.settings:get("default_password")))
 		end
 		update_privileges(name, minetest.privs_to_string(privs))
+		auth_table[name].privileges = privs
 		minetest.notify_authentication_modified(name)
 		return true
 	end,
@@ -197,6 +212,7 @@ sauth.auth_handler = {
 	record_login = function(name)
 		assert(type(name) == 'string')
 		update_login(name)
+		auth_table[name].last_login = os.time()
 		return true
 	end
 }
@@ -282,6 +298,10 @@ end
 minetest.register_authentication_handler(sauth.auth_handler)
 minetest.log('action', MN .. ": Registered auth handler")
 -- housekeeping
+minetest.register_on_leaveplayer(function(player)
+	auth_table[player:get_player_name()] = nil
+end)
+
 minetest.register_on_shutdown(function()
 	db:close()
 end)
