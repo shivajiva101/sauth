@@ -60,6 +60,17 @@ local function get_record(name)
 	end
 end
 
+local function check_name(name)
+	local query = ([[
+		SELECT DISTINCT name 
+		FROM playerdata 
+		WHERE name = LOWER('%s')
+	]]):format(name)
+	for row in db:nrows(query) do
+		return row
+	end
+end
+
 local function get_setting(column)
 	local query = ([[
 		SELECT %s FROM _s
@@ -300,9 +311,23 @@ end
 -- register auth handler
 minetest.register_authentication_handler(sauth.auth_handler)
 minetest.log('action', MN .. ": Registered auth handler")
+
 -- housekeeping
 minetest.register_on_leaveplayer(function(player)
 	auth_table[player:get_player_name()] = nil
+end)
+
+register_on_prejoinplayer(function(name, ip)
+	local r = get_record(name)	
+	if r ~= nil then
+		return
+	end
+	local chk = check_name(name)
+	if chk then
+		return ("\nCannot create new player called '%s'. "..
+			"Another account called '%s' is already registered. "..
+			"Please check the spelling if it's your account "..
+			"or use a different nickname."):format(name, chk.name)
 end)
 
 minetest.register_on_shutdown(function()
