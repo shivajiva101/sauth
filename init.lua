@@ -53,7 +53,7 @@ db_exec(create_db)
 
 local function get_record(name)
 	local query = ([[
-	    SELECT * FROM auth WHERE name = '%s'
+	    SELECT * FROM auth WHERE name = '%s' LIMIT 1;
 	]]):format(name)
 	for row in db:nrows(query) do
 		return row
@@ -64,7 +64,7 @@ local function check_name(name)
 	local query = ([[
 		SELECT DISTINCT name 
 		FROM playerdata 
-		WHERE name = LOWER('%s')
+		WHERE name = LOWER('%s') LIMIT 1;
 	]]):format(name)
 	for row in db:nrows(query) do
 		return row
