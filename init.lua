@@ -20,7 +20,7 @@ if sqlite3 then sqlite3 = nil end
 
 local singleplayer = minetest.is_singleplayer()
 
--- multiplayer unless you restart it.
+-- multiplayer only unless you restart it.
 if not minetest.setting_get(MN .. '.enable_singleplayer')
 and singleplayer then
 	  minetest.log("info", "singleplayer game using builtin auth handler")
@@ -63,7 +63,7 @@ end
 local function check_name(name)
 	local query = ([[
 		SELECT DISTINCT name 
-		FROM playerdata 
+		FROM auth 
 		WHERE name = LOWER('%s') LIMIT 1;
 	]]):format(name)
 	for row in db:nrows(query) do
@@ -317,7 +317,7 @@ minetest.register_on_leaveplayer(function(player)
 	auth_table[player:get_player_name()] = nil
 end)
 
-register_on_prejoinplayer(function(name, ip)
+minetest.register_on_prejoinplayer(function(name, ip)
 	local r = get_record(name)	
 	if r ~= nil then
 		return
@@ -328,6 +328,7 @@ register_on_prejoinplayer(function(name, ip)
 			"Another account called '%s' is already registered. "..
 			"Please check the spelling if it's your account "..
 			"or use a different nickname."):format(name, chk.name)
+	end
 end)
 
 minetest.register_on_shutdown(function()
