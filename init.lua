@@ -142,45 +142,49 @@ end
 
 sauth.auth_handler = {
 	get_auth = function(name)
-	-- return password,privileges,last_login
-	assert(type(name) == 'string')
-	local r = auth_table[name]
-	-- check if db record needs to be loaded
-	if r == nil then
-		r = get_record(name)
-	else
-		return auth_table[name]				
-	end
-	-- If not in authentication table, return nil
-	if not r then return nil end
-	local admin = (name == minetest.setting_get("name"))
-	local privs = {}
-	if singleplayer or admin then
+		-- return password,privileges,last_login
+		assert(type(name) == 'string')
+		local r = auth_table[name]
+		-- check if db record needs to be loaded
+		if r == nil then
+			r = get_record(name)
+		else
+			return auth_table[name]				
+		end
+		-- If not in authentication table, return nil
+		if not r then return nil end
+		local admin = (name == minetest.setting_get("name"))
+		local privs = {}
+		if singleplayer or admin then
 			-- If admin, grant all privs, if singleplayer
 			-- grant all privs with give_to_singleplayer
-			-- save privs to speed up caching
 			for priv, def in pairs(core.registered_privileges) do
 				if (singleplayer and def.give_to_singleplayer) or admin then
 					privs[priv] = true
 				end
 			end			
-	else
-		privs = minetest.string_to_privs(r.privileges)
-	end
-	local record = {
-		password = r.password,
-		privileges = privs,
-		last_login = tonumber(r.last_login)
+		else
+			privs = minetest.string_to_privs(r.privileges)
+		end
+		local record = {
+			password = r.password,
+			privileges = privs,
+			last_login = tonumber(r.last_login)
 		}
-	if not auth_table[name] then auth_table[name] = record end
-	return record
+		if not auth_table[name] then auth_table[name] = record end
+		return record
 	end,
 	create_auth = function(name, password)
 		assert(type(name) == 'string')
 		assert(type(password) == 'string')
 		-- name, password, privs, last_login
-		local ts = os.time()
-		local privs = minetest.settings:get("default_privs")
+		local ts, privs = os.time()
+		if minetest.settings then
+			privs = minetest.settings:get("default_privs")
+		else
+			-- expand compatibility
+			privs = minetest.string_to_privs(minetest.setting_get("default_privs"))
+		end
 		add_record(name,password,privs,ts)
 		auth_table[name] = {
 			password = password,
