@@ -20,7 +20,7 @@ if sqlite3 then sqlite3 = nil end
 
 local singleplayer = minetest.is_singleplayer()
 
--- multiplayer only unless you restart it.
+-- use conf setting to determine load for singleplayer
 if not minetest.setting_get(MN .. '.enable_singleplayer')
 and singleplayer then
 	  minetest.log("info", "singleplayer game using builtin auth handler")
@@ -244,6 +244,12 @@ sauth.auth_handler = {
 -- manage import/export dependant on size
 if get_setting("import") == nil then
 
+	local function tablelength(T)
+  		local count = 0
+  		for _ in pairs(T) do count = count + 1 end
+  		return count
+	end
+	
 	local function save_sql(stmt)
 		-- save file
 		local file = ie.io.open(WP.."/auth.sql", "a")
@@ -294,17 +300,18 @@ if get_setting("import") == nil then
 			add_setting("import", true) -- set db flag
 		end
 	end
-	-- limit direct transfer to a sensible ~1 minute
-	if #core.auth_table < 360 then db_import() end
-	-- are we there yet?
-	if get_setting("import") == false then
-		-- dump to sql
-		export_auth()
+	
+	local function task()
+		-- limit direct transfer to a sensible ~1 minute
+		if tablelength(core.auth_table) < 3600 then db_import() end
+		-- are we there yet?
+		if get_setting("import") == nil then export_auth() end -- dump to sql
+		-- rename auth.txt otherwise it will still load!
+		ie.os.rename(WP.."/auth.txt", WP.."/auth.txt.bak")
+		core.auth_table = {} -- unload redundant data
+		core.notify_authentication_modified()
 	end
-	-- rename auth.txt otherwise it will still load!
-	ie.os.rename(WP.."/auth.txt", WP.."/auth.txt.bak")
-	core.auth_table = {} -- clear
-	core.notify_authentication_modified()
+	minetest.after(5, task)
 end
 
 --[[
