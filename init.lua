@@ -20,7 +20,7 @@ if sqlite3 then sqlite3 = nil end
 
 local singleplayer = minetest.is_singleplayer()
 
--- use conf setting to determine load for singleplayer
+-- use conf setting to determine handler for singleplayer
 if not minetest.setting_get(MN .. '.enable_singleplayer')
 and singleplayer then
 	  minetest.log("info", "singleplayer game using builtin auth handler")
@@ -142,36 +142,44 @@ end
 
 sauth.auth_handler = {
 	get_auth = function(name)
-		-- return password,privileges,last_login
-		assert(type(name) == 'string')
-		local r = auth_table[name]
-		-- check if db record needs to be loaded
-		if r == nil then
-			r = get_record(name)
-		else
-			return auth_table[name]				
-		end
-		-- If not in authentication table, return nil
-		if not r then return nil end
-		local admin = (name == minetest.setting_get("name"))
-		local privs = {}
-		if singleplayer or admin then
-			-- If admin, grant all privs, if singleplayer
-			-- grant all privs with give_to_singleplayer
-			for priv, def in pairs(core.registered_privileges) do
-				if (singleplayer and def.give_to_singleplayer) or admin then
-					privs[priv] = true
-				end
-			end			
-		else
-			privs = minetest.string_to_privs(r.privileges)
-		end
-		local record = {
-			password = r.password,
-			privileges = privs,
-			last_login = tonumber(r.last_login)
-		}
-		if not auth_table[name] then auth_table[name] = record end
+	  -- return password,privileges,last_login
+	  assert(type(name) == 'string')
+	  local r = auth_table[name]
+	  -- check if db record needs to be loaded
+	  if r == nil then
+		  r = get_record(name)
+	  else
+		  return auth_table[name]				
+	  end
+	  -- If not in authentication table, return nil
+	  if not r then return nil end
+	  -- Figure out what privileges the player should have.
+	  -- Take a copy of the privilege table
+	  local privileges = {}
+	  for priv, _ in pairs(core.auth_table[name].privileges) do
+		  privileges[priv] = true
+	  end
+	  -- If singleplayer, give all privileges except those marked as give_to_singleplayer = false
+	  if core.is_singleplayer() then
+		  for priv, def in pairs(core.registered_privileges) do
+			  if def.give_to_singleplayer then
+				  privileges[priv] = true
+			  end
+		  end
+	    -- For the admin, give everything
+	  elseif name == core.settings:get("name") then
+		  for priv, def in pairs(core.registered_privileges) do
+			  if def.give_to_admin then
+				  privileges[priv] = true
+			  end
+		  end
+	  end
+	  local record = {
+		  password = r.password,
+		  privileges = privileges,
+		  last_login = tonumber(r.last_login)
+		  }
+    if not auth_table[name] then auth_table[name] = record end
 		return record
 	end,
 	create_auth = function(name, password)
