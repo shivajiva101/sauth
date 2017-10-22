@@ -14,7 +14,7 @@ to the list of trusted mods in minetest.conf:
 
 	secure.trusted_mods = sauth
 
-This mod will import your existing auth.txt if there are less than 360 records, otherwise it exports SQL block
+This mod will import your existing auth.txt if there are less than 3600 records, otherwise it exports SQL block
 insert statememnts to auth.sql file in the world folder. I recommend you import auth.sql with sqlite3 (https://www.sqlite.org/),
 using the commands:
 
@@ -29,3 +29,6 @@ To enable the mod for singleplayer add:
 ```sauth.enable_singleplayer = true```
 
 to minetest.conf before starting the server.
+
+If you use player database you can easily keep the auth database clean of orphan entries using the shell script posted
+here https://forum.minetest.net/viewtopic.php?f=9&t=18604#p297350 by sofar.
