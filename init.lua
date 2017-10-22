@@ -141,45 +141,46 @@ end
 ]]
 
 sauth.auth_handler = {
-	get_auth = function(name)
-	  -- return password,privileges,last_login
-	  assert(type(name) == 'string')
-	  local r = auth_table[name]
-	  -- check if db record needs to be loaded
-	  if r == nil then
-		  r = get_record(name)
-	  else
-		  return auth_table[name]				
-	  end
-	  -- If not in authentication table, return nil
-	  if not r then return nil end
-	  -- Figure out what privileges the player should have.
-	  -- Take a copy of the privilege table
-	  local privileges = {}
-	  for priv, _ in pairs(core.auth_table[name].privileges) do
-		  privileges[priv] = true
-	  end
-	  -- If singleplayer, give all privileges except those marked as give_to_singleplayer = false
-	  if core.is_singleplayer() then
-		  for priv, def in pairs(core.registered_privileges) do
-			  if def.give_to_singleplayer then
-				  privileges[priv] = true
-			  end
-		  end
-	    -- For the admin, give everything
-	  elseif name == core.settings:get("name") then
-		  for priv, def in pairs(core.registered_privileges) do
-			  if def.give_to_admin then
-				  privileges[priv] = true
-			  end
-		  end
-	  end
-	  local record = {
-		  password = r.password,
-		  privileges = privileges,
-		  last_login = tonumber(r.last_login)
-		  }
-    if not auth_table[name] then auth_table[name] = record end
+	get_auth = function(name, add_to_cache)
+		-- return password,privileges,last_login
+		assert(type(name) == 'string')
+		add_to_cache = add_to_cache or true -- assert caching if param is missing!
+		local r = auth_table[name]
+		-- check if db record needs to be loaded
+		if r == nil then
+			r = get_record(name)
+	  	else
+		  	return auth_table[name]	-- cached copy			
+	  	end
+		-- If not in authentication table, return nil
+		if not r then return nil end
+		-- Figure out what privileges the player should have.
+		-- Take a copy of the privilege table
+		local privileges = {}
+		for priv, _ in pairs(core.auth_table[name].privileges) do
+			privileges[priv] = true
+		end
+		-- If singleplayer, give all privileges except those marked as give_to_singleplayer = false
+		if core.is_singleplayer() then
+			for priv, def in pairs(core.registered_privileges) do
+				if def.give_to_singleplayer then
+					privileges[priv] = true
+				end
+			end
+		    -- For the admin, give everything
+		elseif name == core.settings:get("name") then
+			for priv, def in pairs(core.registered_privileges) do
+				if def.give_to_admin then
+					privileges[priv] = true
+				end
+			end
+		end
+		local record = {
+			password = r.password,
+			privileges = privileges,
+			last_login = tonumber(r.last_login)
+			}
+		if not auth_table[name] and add_to_cache then auth_table[name] = record end
 		return record
 	end,
 	create_auth = function(name, password)
