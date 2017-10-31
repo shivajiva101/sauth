@@ -296,7 +296,7 @@ if get_setting("import") == nil then
 				index = index + 1
 			end
 		end
-		stmt = "UPDATE _s (import) VALUES ('true');\n"
+		stmt = "Update _s SET import = 'false';\n"
 		ie.io.close(file)
 		save_sql(stmt.."END;\n")
 		add_setting("import", false)
