@@ -296,10 +296,11 @@ if get_setting("import") == nil then
 				index = index + 1
 			end
 		end
-		stmt = "Update _s SET import = 'false';\n"
+		stmt = "INSERT INTO _s (import) VALUES ('true');\n"
 		ie.io.close(file)
 		save_sql(stmt.."END;\n")
-		add_setting("import", false)
+		ie.os.remove(WP.."/sauth.sqlite")
+		minetest.request_shutdown("Server Shutdown requested...")
 	end
 
 	local function db_import()
