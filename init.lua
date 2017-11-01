@@ -168,7 +168,7 @@ sauth.auth_handler = {
 				end
 			end
 		-- If admin, grant all privileges
-		elseif name = core.setting_get("name") or name == core.settings:get("name") then
+		elseif name == core.setting_get("name") or name == core.settings:get("name") then
 			for priv, def in pairs(core.registered_privileges) do
 				privileges[priv] = true
 			end
