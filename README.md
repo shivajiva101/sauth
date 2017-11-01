@@ -14,10 +14,12 @@ to the list of trusted mods in minetest.conf:
 
 	secure.trusted_mods = sauth
 
-This mod will import your existing auth.txt if there are less than 3600 records, otherwise it exports SQL block
-insert statememnts to auth.sql file in the world folder. I recommend you import auth.sql with sqlite3 (https://www.sqlite.org/),
-using the commands:
+This mod will import your existing auth.txt on first run, if there are less than 3600 records, otherwise it exports SQL block
+insert statements to a file called auth.sql in the world folder and shuts the server down, so you can import the database.
+I recommend you import auth.sql with sqlite3 (https://www.sqlite.org/), navigate to the world folder in a terminal
+and use the commands:
 
+    sqlite3
     .open sauth.sqlite
     .read auth.sql
     .exit
