@@ -1,7 +1,7 @@
 -- sauth mod for minetest voxel game
 -- by shivajiva101@hotmail.com
 
--- expose handler functions
+-- Expose auth handler functions
 sauth = {}
 local auth_table = {}
 local MN = minetest.get_current_modname()
@@ -13,14 +13,14 @@ if not ie then
 		" - make sure this mod has been added to minetest.conf!")
 end
 
--- requires library for db access
+-- Requires library for db access
 local _sql = ie.require("lsqlite3")
--- don't allow other mods to use the global library!
+-- Don't allow other mods to use this global library!
 if sqlite3 then sqlite3 = nil end
 
 local singleplayer = minetest.is_singleplayer()
 
--- use conf setting to determine handler for singleplayer
+-- Use conf setting to determine handler for singleplayer
 if not minetest.setting_get(MN .. '.enable_singleplayer')
 and singleplayer then
 	  minetest.log("info", "singleplayer game using builtin auth handler")
@@ -29,14 +29,14 @@ end
 
 local db = _sql.open(WP.."/sauth.sqlite") -- connection
 
--- db:exec wrapper for error reporting
+-- Create db:exec wrapper for error reporting
 local function db_exec(stmt)
 	if db:exec(stmt) ~= _sql.OK then
 		minetest.log("info", "Sqlite ERROR:  ", db:errmsg())
 	end
 end
 
--- db tables - because we need them!
+-- Db tables - because we need them!
 local create_db = [[
 CREATE TABLE IF NOT EXISTS auth (id INTEGER PRIMARY KEY AUTOINCREMENT,
 name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
@@ -142,68 +142,63 @@ end
 
 sauth.auth_handler = {
 	get_auth = function(name, add_to_cache)
-		-- return password,privileges,last_login
+		-- Return password,privileges,last_login
 		assert(type(name) == 'string')
-		add_to_cache = add_to_cache or true -- assert caching if param is missing!
+		add_to_cache = add_to_cache or true -- Assert caching on missing param
 		local r = auth_table[name]
-		-- check if db record needs to be loaded
+		-- Check and load db record if reqd
 		if r == nil then
 			r = get_record(name)
 	  	else
 		  	return auth_table[name]	-- cached copy			
 	  	end
-		-- If not in authentication table, return nil
+		-- Return nil on missing entry
 		if not r then return nil end
 		-- Figure out what privileges the player should have.
-		-- Take a copy of the privilege table
+		-- Take a copy of the players privilege table
 		local privileges = {}
-		for priv, _ in pairs(core.auth_table[name].privileges) do
+		for priv, _ in pairs(minetest.string_to_privs(r.privileges)) do
 			privileges[priv] = true
 		end
-		-- If singleplayer, give all privileges except those marked as give_to_singleplayer = false
+		-- If singleplayer, grant privileges marked give_to_singleplayer = true
 		if core.is_singleplayer() then
 			for priv, def in pairs(core.registered_privileges) do
 				if def.give_to_singleplayer then
 					privileges[priv] = true
 				end
 			end
-		    -- For the admin, give everything
-		elseif name == core.settings:get("name") then
+		-- If admin, grant all privileges
+		elseif name = core.setting_get("name") or name == core.settings:get("name") then
 			for priv, def in pairs(core.registered_privileges) do
-				if def.give_to_admin then
-					privileges[priv] = true
-				end
+				privileges[priv] = true
 			end
 		end
+		-- Construct record
 		local record = {
 			password = r.password,
 			privileges = privileges,
 			last_login = tonumber(r.last_login)
 			}
-		if not auth_table[name] and add_to_cache then auth_table[name] = record end
+		if not auth_table[name] and add_to_cache then auth_table[name] = record end -- Cache if reqd
 		return record
 	end,
 	create_auth = function(name, password)
 		assert(type(name) == 'string')
 		assert(type(password) == 'string')
-		-- name, password, privs, last_login
 		local ts, privs = os.time()
 		if minetest.settings then
 			privs = minetest.settings:get("default_privs")
 		else
-			-- expand compatibility
+			-- use old method
 			privs = minetest.string_to_privs(minetest.setting_get("default_privs"))
 		end
+		-- Params: name, password, privs, last_login
 		add_record(name,password,privs,ts)
-		auth_table[name] = {
-			password = password,
-			privileges = minetest.string_to_privs(privs),
-			last_login = ts}
 		return true
 	end,
 	delete_auth = function(name)
 		assert(type(name) == 'string')
-		-- prevent removal if player is online
+		-- Offline only!
 		if auth_table[name] == nil then del_record(name) end
 		return true
 	end,
@@ -214,7 +209,7 @@ sauth.auth_handler = {
 		if get_record(name) == nil then
 			sauth.auth_handler.create_auth(name, password)
 		else
-			update_password(name,password)
+			update_password(name, password)
 			auth_table[name].password = password
 		end
 		return true
@@ -250,7 +245,7 @@ sauth.auth_handler = {
 ########################
 ]]
 
--- manage import/export dependant on size
+-- Manage import/export dependant on size
 if get_setting("import") == nil then
 
 	local function tablelength(T)
@@ -307,8 +302,8 @@ if get_setting("import") == nil then
 		for name, stuff in pairs(core.auth_table) do
 			local privs = minetest.privs_to_string(stuff.privileges)
 			add_record(name,stuff.password,privs,stuff.last_login)
-			add_setting("import", true) -- set db flag
 		end
+		add_setting("import", true) -- set db flag
 	end
 	
 	local function task()
@@ -329,11 +324,11 @@ end
 ###  Register hooks  ###
 ########################
 ]]
--- register auth handler
+-- Register auth handler
 minetest.register_authentication_handler(sauth.auth_handler)
 minetest.log('action', MN .. ": Registered auth handler")
 
--- housekeeping
+-- Housekeeping
 minetest.register_on_leaveplayer(function(player)
 	auth_table[player:get_player_name()] = nil
 end)
@@ -343,6 +338,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	if r ~= nil then
 		return
 	end
+	-- Check name isn't registered
 	local chk = check_name(name)
 	if chk then
 		return ("\nCannot create new player called '%s'. "..
