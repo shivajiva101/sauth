@@ -210,7 +210,7 @@ sauth.auth_handler = {
 			sauth.auth_handler.create_auth(name, password)
 		else
 			update_password(name, password)
-			auth_table[name].password = password
+			if auth_table[name] then auth_table[name].password = password end
 		end
 		return true
 	end,
@@ -224,7 +224,7 @@ sauth.auth_handler = {
 					minetest.settings:get("default_password")))
 		end
 		update_privileges(name, minetest.privs_to_string(privs))
-		auth_table[name].privileges = privs
+		if auth_table[name] then auth_table[name].privileges = privs end
 		minetest.notify_authentication_modified(name)
 		return true
 	end,
