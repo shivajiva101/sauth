@@ -295,13 +295,22 @@ if get_setting("import") == nil then
 		ie.io.close(file)
 		save_sql(stmt.."END;\n")
 		ie.os.remove(WP.."/sauth.sqlite")
-		minetest.request_shutdown("Server Shutdown requested...")
+		minetest.request_shutdown("Server Shutdown requested...", false, 5)
 	end
 
 	local function db_import()
+		local player_name = core.get_connected_players() or ""
+		if type(player_name) == 'table' and #player_name > 0 then
+			player_name = player_name[1].name
+		end
 		for name, stuff in pairs(core.auth_table) do
 			local privs = minetest.privs_to_string(stuff.privileges)
-			add_record(name,stuff.password,privs,stuff.last_login)
+			if not name == player_name then
+				add_record(name,stuff.password,privs,stuff.last_login)
+			else
+				update_privileges(name, stuff.privileges)
+				update_password(name, stuff.password)
+			end
 		end
 		add_setting("import", true) -- set db flag
 	end
