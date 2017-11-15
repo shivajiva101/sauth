@@ -190,7 +190,7 @@ sauth.auth_handler = {
 			privs = minetest.settings:get("default_privs")
 		else
 			-- use old method
-			privs = minetest.string_to_privs(minetest.setting_get("default_privs"))
+			privs = minetest.setting_get("default_privs")
 		end
 		-- Params: name, password, privs, last_login
 		add_record(name,password,privs,ts)
