@@ -36,6 +36,19 @@ local function db_exec(stmt)
 	end
 end
 
+local function cache_check(name)
+	local chk = false
+	for _,data in ipairs(minetest.get_connected_players()) do
+		if data:get_player_name() == name then
+			chk = true
+			break
+		end
+	end
+	if not chk then
+		auth_table[name] = nil
+	end
+end
+
 -- Db tables - because we need them!
 local create_db = [[
 CREATE TABLE IF NOT EXISTS auth (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -339,7 +352,8 @@ minetest.log('action', MN .. ": Registered auth handler")
 
 -- Housekeeping
 minetest.register_on_leaveplayer(function(player)
-	auth_table[player:get_player_name()] = nil
+	-- Schedule a check to see if the player has gone
+	minetest.after(60, cache_check, player:get_player_name())
 end)
 
 minetest.register_on_prejoinplayer(function(name, ip)
