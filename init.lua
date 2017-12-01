@@ -77,7 +77,7 @@ local function check_name(name)
 	local query = ([[
 		SELECT DISTINCT name 
 		FROM auth 
-		WHERE name = LOWER('%s') LIMIT 1;
+		WHERE LOWER(name) = LOWER('%s') LIMIT 1;
 	]]):format(name)
 	for row in db:nrows(query) do
 		return row
