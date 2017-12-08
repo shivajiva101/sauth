@@ -93,6 +93,15 @@ local function get_setting(column)
 	end
 end
 
+local function get_names(name)
+	local r,q = {}
+	q = "SELECT name FROM auth WHERE name LIKE '%"..name.."%';"
+	for row in db:nrows(q) do
+		r[#r+1] = row.name
+	end
+	return r
+end
+
 --[[
 ##############################
 ###  Database: Statements  ###
@@ -249,6 +258,10 @@ sauth.auth_handler = {
 		update_login(name)
 		auth_table[name].last_login = os.time()
 		return true
+	end,
+	name_search = function(name)
+		assert(type(name) == 'string')
+		return get_names(name)
 	end
 }
 
