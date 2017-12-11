@@ -178,9 +178,14 @@ sauth.auth_handler = {
 		if not r then return nil end
 		-- Figure out what privileges the player should have.
 		-- Take a copy of the players privilege table
-		local privileges = {}
+		local privileges, admin = {}
 		for priv, _ in pairs(minetest.string_to_privs(r.privileges)) do
 			privileges[priv] = true
+		end
+		if core.settings then
+			admin = core.settings:get("name")
+		else
+			admin = core.setting_get("name")
 		end
 		-- If singleplayer, grant privileges marked give_to_singleplayer = true
 		if core.is_singleplayer() then
@@ -190,7 +195,7 @@ sauth.auth_handler = {
 				end
 			end
 		-- If admin, grant all privileges
-		elseif name == core.setting_get("name") or name == core.settings:get("name") then
+		elseif name == admin then
 			for priv, def in pairs(core.registered_privileges) do
 				privileges[priv] = true
 			end
@@ -208,11 +213,11 @@ sauth.auth_handler = {
 		assert(type(name) == 'string')
 		assert(type(password) == 'string')
 		local ts, privs = os.time()
-		if minetest.settings then
-			privs = minetest.settings:get("default_privs")
+		if core.settings then
+			privs = core.settings:get("default_privs")
 		else
 			-- use old method
-			privs = minetest.setting_get("default_privs")
+			privs = core.setting_get("default_privs")
 		end
 		-- Params: name, password, privs, last_login
 		add_record(name,password,privs,ts)
@@ -241,10 +246,23 @@ sauth.auth_handler = {
 		assert(type(privs) == 'table')
 		if not sauth.auth_handler.get_auth(name) then
 	    		-- create the record
-	   		sauth.auth_handler.create_auth(name,
-				minetest.get_password_hash(name,
-					minetest.settings:get("default_password")))
+			if core.settings then
+				sauth.auth_handler.create_auth(name,
+					core.get_password_hash(name,
+						core.settings:get("default_password")))
+			else
+				sauth.auth_handler.create_auth(name,
+					core.get_password_hash(name,
+						core.setting_get("default_password")))
+			end
 		end
+		local admin
+		if core.settings then
+			admin = core.settings:get("name")
+		else
+			admin = core.setting_get("name")
+		end
+		if name == admin then privs.privs = true end
 		update_privileges(name, minetest.privs_to_string(privs))
 		if auth_table[name] then auth_table[name].privileges = privs end
 		minetest.notify_authentication_modified(name)
