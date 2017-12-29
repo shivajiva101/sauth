@@ -166,6 +166,11 @@ sauth.auth_handler = {
 	get_auth = function(name, add_to_cache)
 		-- Return password,privileges,last_login
 		assert(type(name) == 'string')
+		-- catch empty names for mods that do privilege checks
+		if name == nil or name == '' or name == ' ' then
+			minetest.log("info", "[sauth] Name missing in call to get_auth. Rejected.")
+			return nil
+		end
 		add_to_cache = add_to_cache or true -- Assert caching on missing param
 		local r = auth_table[name]
 		-- Check and load db record if reqd
