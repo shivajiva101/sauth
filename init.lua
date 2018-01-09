@@ -171,6 +171,8 @@ sauth.auth_handler = {
 			minetest.log("info", "[sauth] Name missing in call to get_auth. Rejected.")
 			return nil
 		end
+		-- catch ' passed in name string to prevent crash
+		if name:find("%'") then return nil end
 		add_to_cache = add_to_cache or true -- Assert caching on missing param
 		local r = auth_table[name]
 		-- Check and load db record if reqd
