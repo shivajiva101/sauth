@@ -363,7 +363,7 @@ if get_setting("import") == nil then
 				update_password(name, stuff.password)
 			end
 		end
-		add_setting("import", true) -- set db flag
+		add_setting("import", 'true') -- set db flag
 	end
 	
 	local function task()
