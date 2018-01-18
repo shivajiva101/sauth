@@ -359,7 +359,7 @@ if get_setting("import") == nil then
 			if not name == player_name then
 				add_record(name,stuff.password,privs,stuff.last_login)
 			else
-				update_privileges(name, stuff.privileges)
+				update_privileges(name, privs)
 				update_password(name, stuff.password)
 			end
 		end
