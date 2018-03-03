@@ -387,6 +387,7 @@ if get_setting("import") == nil then
 				update_password(name, stuff.password)
 			end
 		end
+		importauth = nil
 		add_setting("import", 'true') -- set db flag
 	end
 	
