@@ -68,29 +68,29 @@ local function get_record(name)
 	local query = ([[
 	    SELECT * FROM auth WHERE name = '%s' LIMIT 1;
 	]]):format(name)
-	for row in db:nrows(query) do
-		return row
-	end
+	local it, state = db:nrows(query)
+	local row = it(state)
+	return row
 end
 
 local function check_name(name)
 	local query = ([[
-		SELECT DISTINCT name 
-		FROM auth 
+		SELECT DISTINCT name
+		FROM auth
 		WHERE LOWER(name) = LOWER('%s') LIMIT 1;
 	]]):format(name)
-	for row in db:nrows(query) do
-		return row
-	end
+	local it, state = db:nrows(query)
+	local row = it(state)
+	return row
 end
 
 local function get_setting(column)
 	local query = ([[
 		SELECT %s FROM _s
 	]]):format(column)
-	for row in db:nrows(query) do
-		return row
-	end
+	local it, state = db:nrows(query)
+	local row = it(state)
+	return row
 end
 
 local function get_names(name)
@@ -315,7 +315,7 @@ if get_setting("import") == nil then
 		end
 	end
 
-	local function del_sql()
+	local function remove_sql()
 		ie.os.remove(WP.."/auth.sql")
 	end
 
@@ -347,8 +347,9 @@ if get_setting("import") == nil then
 			minetest.log("info", WP.."/auth.txt".." could not be opened for reading ("..errmsg..")")
 			return
 		end
-		del_sql()
+		remove_sql()
 		local index = 1
+		-- Create export file by appending lines
 		local stmt = create_db.."BEGIN;\n"
 		for line in file:lines() do
 			if line ~= "" then
@@ -366,14 +367,14 @@ if get_setting("import") == nil then
 			end
 		end
 		stmt = "INSERT INTO _s (import) VALUES ('true');\n"
-		ie.io.close(file)
-		save_sql(stmt.."END;\n")
-		ie.os.remove(WP.."/sauth.sqlite")
+		ie.io.close(file) -- close auth.txt
+		save_sql(stmt.."END;\n") -- finalise
+		ie.os.remove(WP.."/sauth.sqlite") -- remove existing db
 		minetest.request_shutdown("Server Shutdown requested...", false, 5)
 	end
 
 	local function db_import()
-		-- local instance creates player, if that is the case update or duplication occurs 
+		-- local instance creates player, update or duplication occurs!
 		local player_name = core.get_connected_players() or ""
 		if type(player_name) == 'table' and #player_name > 0 then
 			player_name = player_name[1].name
