@@ -395,7 +395,7 @@ if get_setting("import") == nil then
 		-- load auth.txt
 		read_auth_file()
 		if tablelength(importauth) < 1 then
-			minetest.log("info", "[sban] nothing to import!"
+			minetest.log("info", "[sban] nothing to import!")
 			return
 		end			
 		-- limit direct transfer to a sensible ~1 minute
