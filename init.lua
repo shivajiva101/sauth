@@ -298,7 +298,8 @@ sauth.auth_handler = {
 
 -- Manage import/export dependant on size
 if get_setting("import") == nil then
-
+	local importauth
+	
 	local function tablelength(T)
   		local count = 0
   		for _ in pairs(T) do count = count + 1 end
@@ -318,6 +319,28 @@ if get_setting("import") == nil then
 		ie.os.remove(WP.."/auth.sql")
 	end
 
+	local function read_auth_file()
+		local file, errmsg = ie.io.open(WP.."/auth.txt", 'rb')
+		if not file then
+			minetest.log("info", " auth.txt missing! ("..errmsg..")")
+			return
+		end
+		for line in file:lines() do
+			if line ~= "" then
+				local fields = line:split(":", true)
+				local name, password, privilege_string, last_login = unpack(fields)
+				last_login = tonumber(last_login)
+				if not (name and password and privilege_string) then
+					minetest.log("info", "Invalid line in auth.txt: "..dump(line))
+					break
+				end
+				local privileges = minetest.string_to_privs(privilege_string)
+				importauth[name] = {password=password, privileges=privileges, last_login=last_login}
+			end
+		end
+		ie.io.close(file)
+	end
+	
 	local function export_auth()
 		local file, errmsg = ie.io.open(WP.."/auth.txt", 'rb')
 		if not file then
@@ -350,13 +373,14 @@ if get_setting("import") == nil then
 	end
 
 	local function db_import()
+		-- local instance creates player, if that is the case update or duplication occurs 
 		local player_name = core.get_connected_players() or ""
 		if type(player_name) == 'table' and #player_name > 0 then
 			player_name = player_name[1].name
 		end
-		for name, stuff in pairs(core.auth_table) do
+		for name, stuff in pairs(importauth) do
 			local privs = minetest.privs_to_string(stuff.privileges)
-			if not name == player_name then
+			if name ~= player_name then
 				add_record(name,stuff.password,privs,stuff.last_login)
 			else
 				update_privileges(name, privs)
@@ -367,13 +391,21 @@ if get_setting("import") == nil then
 	end
 	
 	local function task()
+		-- load auth.txt
+		read_auth_file()
+		if tablelength(importauth) < 1 then
+			minetest.log("info", "[sban] nothing to import!"
+			return
+		end			
 		-- limit direct transfer to a sensible ~1 minute
-		if tablelength(core.auth_table) < 3600 then db_import() end
+		if tablelength(importauth) < 3600 then db_import() end
 		-- are we there yet?
 		if get_setting("import") == nil then export_auth() end -- dump to sql
 		-- rename auth.txt otherwise it will still load!
 		ie.os.rename(WP.."/auth.txt", WP.."/auth.txt.bak")
-		core.auth_table = {} -- unload redundant data
+		if core.auth_table then
+			core.auth_table = {} -- unload redundant data
+		end
 		core.notify_authentication_modified()
 	end
 	minetest.after(5, task)
