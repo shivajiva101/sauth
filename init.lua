@@ -298,7 +298,7 @@ sauth.auth_handler = {
 
 -- Manage import/export dependant on size
 if get_setting("import") == nil then
-	local importauth
+	local importauth = {}
 	
 	local function tablelength(T)
   		local count = 0
