@@ -7,7 +7,7 @@ local auth_table = {}
 local MN = minetest.get_current_modname()
 local WP = minetest.get_worldpath()
 local ie = minetest.request_insecure_environment()
-local dump = dump()
+
 if not ie then
 	error("insecure environment inaccessible"..
 		" - make sure this mod has been added to minetest.conf!")
@@ -220,7 +220,7 @@ sauth.auth_handler = {
 		assert(type(name) == 'string')
 		assert(type(password) == 'string')
 		local ts = os.time()
-		local privs = ""
+		local privs
 		if minetest.settings then
 			privs = minetest.settings:get("default_privs")
 		else
