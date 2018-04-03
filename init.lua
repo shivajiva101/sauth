@@ -115,7 +115,7 @@ local function add_record(name, password, privs, last_login)
 		password,
 		privileges,
 		last_login
-    		) VALUES ('%s','%s','%s','%s')
+		) VALUES ('%s','%s','%s','%s')
 	]]):format(name, password, privs, last_login)
 	db_exec(stmt)
 end
@@ -178,9 +178,9 @@ sauth.auth_handler = {
 		-- Check and load db record if reqd
 		if r == nil then
 			r = get_record(name)
-	  	else
-		  	return auth_table[name]	-- cached copy			
-	  	end
+		else
+			return auth_table[name]	-- cached copy
+		end
 		-- Return nil on missing entry
 		if not r then return nil end
 		-- Figure out what privileges the player should have.
@@ -189,21 +189,21 @@ sauth.auth_handler = {
 		for priv, _ in pairs(minetest.string_to_privs(r.privileges)) do
 			privileges[priv] = true
 		end
-		if core.settings then
-			admin = core.settings:get("name")
+		if minetest.settings then
+			admin = minetest.settings:get("name")
 		else
-			admin = core.setting_get("name")
+			admin = minetest.setting_get("name")
 		end
 		-- If singleplayer, grant privileges marked give_to_singleplayer = true
-		if core.is_singleplayer() then
-			for priv, def in pairs(core.registered_privileges) do
+		if minetest.is_singleplayer() then
+			for priv, def in pairs(minetest.registered_privileges) do
 				if def.give_to_singleplayer then
 					privileges[priv] = true
 				end
 			end
 		-- If admin, grant all privileges
 		elseif name == admin then
-			for priv, def in pairs(core.registered_privileges) do
+			for priv, def in pairs(minetest.registered_privileges) do
 				privileges[priv] = true
 			end
 		end
@@ -219,15 +219,16 @@ sauth.auth_handler = {
 	create_auth = function(name, password)
 		assert(type(name) == 'string')
 		assert(type(password) == 'string')
-		local ts, privs = os.time()
-		if core.settings then
-			privs = core.settings:get("default_privs")
+		local ts = os.time()
+		local privs
+		if minetest.settings then
+			privs = minetest.settings:get("default_privs")
 		else
 			-- use old method
-			privs = core.setting_get("default_privs")
+			privs = minetest.setting_get("default_privs")
 		end
 		-- Params: name, password, privs, last_login
-		add_record(name,password,privs,ts)
+		add_record(name, password, privs, ts)
 		return true
 	end,
 	delete_auth = function(name)
@@ -252,22 +253,22 @@ sauth.auth_handler = {
 		assert(type(name) == 'string')
 		assert(type(privs) == 'table')
 		if not sauth.auth_handler.get_auth(name) then
-	    		-- create the record
-			if core.settings then
+		-- create the record
+			if minetest.settings then
 				sauth.auth_handler.create_auth(name,
-					core.get_password_hash(name,
-						core.settings:get("default_password")))
+					minetest.get_password_hash(name,
+						minetest.settings:get("default_password")))
 			else
 				sauth.auth_handler.create_auth(name,
-					core.get_password_hash(name,
-						core.setting_get("default_password")))
+					minetest.get_password_hash(name,
+						minetest.setting_get("default_password")))
 			end
 		end
 		local admin
-		if core.settings then
-			admin = core.settings:get("name")
+		if minetest.settings then
+			admin = minetest.settings:get("name")
 		else
-			admin = core.setting_get("name")
+			admin = minetest.setting_get("name")
 		end
 		if name == admin then privs.privs = true end
 		update_privileges(name, minetest.privs_to_string(privs))
@@ -299,13 +300,13 @@ sauth.auth_handler = {
 -- Manage import/export dependant on size
 if get_setting("import") == nil then
 	local importauth = {}
-	
+
 	local function tablelength(T)
-  		local count = 0
-  		for _ in pairs(T) do count = count + 1 end
-  		return count
+		local count = 0
+		for _ in pairs(T) do count = count + 1 end
+		return count
 	end
-	
+
 	local function save_sql(stmt)
 		-- save file
 		local file = ie.io.open(WP.."/auth.sql", "a")
@@ -331,7 +332,7 @@ if get_setting("import") == nil then
 				local name, password, privilege_string, last_login = unpack(fields)
 				last_login = tonumber(last_login)
 				if not (name and password and privilege_string) then
-					minetest.log("info", "Invalid line in auth.txt: "..dump(line))
+					minetest.log("info", "Invalid line in auth.txt: "..line)
 					break
 				end
 				local privileges = minetest.string_to_privs(privilege_string)
@@ -340,7 +341,7 @@ if get_setting("import") == nil then
 		end
 		ie.io.close(file)
 	end
-	
+
 	local function export_auth()
 		local file, errmsg = ie.io.open(WP.."/auth.txt", 'rb')
 		if not file then
@@ -375,7 +376,7 @@ if get_setting("import") == nil then
 
 	local function db_import()
 		-- local instance creates player, update or duplication occurs!
-		local player_name = core.get_connected_players() or ""
+		local player_name = minetest.get_connected_players() or ""
 		if type(player_name) == 'table' and #player_name > 0 then
 			player_name = player_name[1].name
 		end
@@ -391,24 +392,21 @@ if get_setting("import") == nil then
 		importauth = nil
 		add_setting("import", 'true') -- set db flag
 	end
-	
+
 	local function task()
 		-- load auth.txt
 		read_auth_file()
 		if tablelength(importauth) < 1 then
 			minetest.log("info", "[sban] nothing to import!")
 			return
-		end			
+		end
 		-- limit direct transfer to a sensible ~1 minute
 		if tablelength(importauth) < 3600 then db_import() end
 		-- are we there yet?
 		if get_setting("import") == nil then export_auth() end -- dump to sql
 		-- rename auth.txt otherwise it will still load!
 		ie.os.rename(WP.."/auth.txt", WP.."/auth.txt.bak")
-		if core.auth_table then
-			core.auth_table = {} -- unload redundant data
-		end
-		core.notify_authentication_modified()
+		minetest.notify_authentication_modified()
 	end
 	minetest.after(5, task)
 end
@@ -429,7 +427,7 @@ minetest.register_on_leaveplayer(function(player)
 end)
 
 minetest.register_on_prejoinplayer(function(name, ip)
-	local r = get_record(name)	
+	local r = get_record(name)
 	if r ~= nil then
 		return
 	end
