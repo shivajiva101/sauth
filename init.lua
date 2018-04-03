@@ -7,7 +7,7 @@ local auth_table = {}
 local MN = minetest.get_current_modname()
 local WP = minetest.get_worldpath()
 local ie = minetest.request_insecure_environment()
-
+local dump = dump()
 if not ie then
 	error("insecure environment inaccessible"..
 		" - make sure this mod has been added to minetest.conf!")
@@ -189,7 +189,7 @@ sauth.auth_handler = {
 		for priv, _ in pairs(minetest.string_to_privs(r.privileges)) do
 			privileges[priv] = true
 		end
-		if core.settings then
+		if minetest.settings then
 			admin = minetest.settings:get("name")
 		else
 			admin = minetest.setting_get("name")
@@ -219,7 +219,8 @@ sauth.auth_handler = {
 	create_auth = function(name, password)
 		assert(type(name) == 'string')
 		assert(type(password) == 'string')
-		local ts, privs = os.time(), {}
+		local ts = os.time()
+		local privs = ""
 		if minetest.settings then
 			privs = minetest.settings:get("default_privs")
 		else
@@ -227,7 +228,7 @@ sauth.auth_handler = {
 			privs = minetest.setting_get("default_privs")
 		end
 		-- Params: name, password, privs, last_login
-		add_record(name,password,privs,ts)
+		add_record(name, password, privs, ts)
 		return true
 	end,
 	delete_auth = function(name)
@@ -299,7 +300,7 @@ sauth.auth_handler = {
 -- Manage import/export dependant on size
 if get_setting("import") == nil then
 	local importauth = {}
-	
+
 	local function tablelength(T)
 		local count = 0
 		for _ in pairs(T) do count = count + 1 end
@@ -331,7 +332,7 @@ if get_setting("import") == nil then
 				local name, password, privilege_string, last_login = unpack(fields)
 				last_login = tonumber(last_login)
 				if not (name and password and privilege_string) then
-					minetest.log("info", "Invalid line in auth.txt: "..dump(line))
+					minetest.log("info", "Invalid line in auth.txt: "..line)
 					break
 				end
 				local privileges = minetest.string_to_privs(privilege_string)
@@ -405,10 +406,7 @@ if get_setting("import") == nil then
 		if get_setting("import") == nil then export_auth() end -- dump to sql
 		-- rename auth.txt otherwise it will still load!
 		ie.os.rename(WP.."/auth.txt", WP.."/auth.txt.bak")
-		if minetest.auth_table then
-			minetest.auth_table = {} -- unload redundant data
-		end
-		core.notify_authentication_modified()
+		minetest.notify_authentication_modified()
 	end
 	minetest.after(5, task)
 end
