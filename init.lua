@@ -93,11 +93,20 @@ local function get_setting(column)
 	return row
 end
 
-local function get_names(name)
+local function search(name)
 	local r,q = {}
 	q = "SELECT name FROM auth WHERE name LIKE '%"..name.."%';"
 	for row in db:nrows(q) do
 		r[#r+1] = row.name
+	end
+	return r
+end
+
+local function get_names()
+	local r,q = {}
+	q = "SELECT name FROM auth;"
+	for row in db:nrows(q) do
+		r[row.name] = true
 	end
 	return r
 end
@@ -286,8 +295,11 @@ sauth.auth_handler = {
 	end,
 	name_search = function(name)
 		assert(type(name) == 'string')
-		return get_names(name)
-	end
+		return search(name)
+	end,
+	iterate = function()
+		return get_names()
+	end,
 }
 
 --[[
