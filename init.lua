@@ -290,7 +290,11 @@ sauth.auth_handler = {
 	record_login = function(name)
 		assert(type(name) == 'string')
 		update_login(name)
-		auth_table[name].last_login = os.time()
+		
+		local auth = auth_table[name]
+		if auth then
+			auth.last_login = os.time()
+		end
 		return true
 	end,
 	name_search = function(name)
