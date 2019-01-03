@@ -30,12 +30,12 @@ To enable the mod for singleplayer add:
 
 ```sauth.enable_singleplayer = true```
 
-to minetest.conf before starting the server. Caching can be turned on and managed with these conf settings:
+to minetest.conf before starting the server. Enhanced caching can be turned on and managed with these conf settings:
 
 ```
-sauth.caching = true
-sauth.cache_max = 500
-sauth.cache_ttl = 86400
+sauth.caching = true -- default is false
+sauth.cache_max = 500 -- number of extra cached entries
+sauth.cache_ttl = 86400 -- seconds before last login
 ```
 
 If you use player database you can easily keep the auth database clean of orphan entries using the shell script posted
