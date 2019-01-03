@@ -13,7 +13,6 @@ local caching = minetest.setting_get(MN .. '.caching') or false
 local max_cache_records = minetest.setting_get(MN .. '.cache_max') or 500
 local ttl = minetest.setting_get(MN..'.cache_ttl') or 86400 -- defaults to 24 hours
 
-
 -- db schema table names and search strings
 local tt = {
 	auth_ABC = "abc",
@@ -37,7 +36,7 @@ end
 -- Requires library for db access
 local _sql = ie.require("lsqlite3")
 
--- Don't allow other mods to access this instance!
+-- Don't allow other mods to use this sqlite instance
 if sqlite3 then sqlite3 = nil end
 
 local singleplayer = minetest.is_singleplayer()
@@ -60,14 +59,13 @@ end
 
 -- Iterate the db tables to create the cache
 local function fetch_cache()
+	local q
 	local r = {}
-	for k,v in pairs(tt) do
-		local q = ([[SELECT * FROM %s
-		WHERE last_login > (SELECT max(last_login) FROM %s) - %s LIMIT %s;
-		]]):format(k, k, ttl, max_cache_records)
-		for row in db:nrows(q) do
-			r[#r+1] = row
-		end
+	q = ([[SELECT *	FROM v_auth
+	WHERE last_login > (SELECT max(last_login) FROM v_auth) - %s LIMIT %s;
+	]]):format(ttl, max_cache_records)
+	for row in db:nrows(q) do
+		r[#r+1] = row
 	end
 	auth_table = r
 end
@@ -86,39 +84,40 @@ end
 
 -- Db tables - because we need them!
 local create_db = [[
-CREATE TABLE IF NOT EXISTS auth_ABC (id INTEGER PRIMARY KEY AUTOINCREMENT,
-name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
-last_login INTEGER);
-CREATE TABLE IF NOT EXISTS auth_DEF (id INTEGER PRIMARY KEY AUTOINCREMENT,
-name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
-last_login INTEGER);
-CREATE TABLE IF NOT EXISTS auth_GHI (id INTEGER PRIMARY KEY AUTOINCREMENT,
-name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
-last_login INTEGER);
-CREATE TABLE IF NOT EXISTS auth_JKL (id INTEGER PRIMARY KEY AUTOINCREMENT,
-name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
-last_login INTEGER);
-CREATE TABLE IF NOT EXISTS auth_MNO (id INTEGER PRIMARY KEY AUTOINCREMENT,
-name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
-last_login INTEGER);
-CREATE TABLE IF NOT EXISTS auth_PQR (id INTEGER PRIMARY KEY AUTOINCREMENT,
-name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
-last_login INTEGER);
-CREATE TABLE IF NOT EXISTS auth_STU (id INTEGER PRIMARY KEY AUTOINCREMENT,
-name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
-last_login INTEGER);
-CREATE TABLE IF NOT EXISTS auth_VWX (id INTEGER PRIMARY KEY AUTOINCREMENT,
-name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
-last_login INTEGER);
-CREATE TABLE IF NOT EXISTS auth_YZ (id INTEGER PRIMARY KEY AUTOINCREMENT,
-name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
-last_login INTEGER);
-CREATE TABLE IF NOT EXISTS auth_09 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
-last_login INTEGER);
-CREATE TABLE IF NOT EXISTS auth_misc (id INTEGER PRIMARY KEY AUTOINCREMENT,
-name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
-last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_ABC (name VARCHAR (32) PRIMARY KEY ON CONFLICT IGNORE,
+password VARCHAR (512), privileges VARCHAR (512), last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_DEF (name VARCHAR (32) PRIMARY KEY ON CONFLICT IGNORE,
+password VARCHAR (512), privileges VARCHAR (512), last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_GHI (name VARCHAR (32) PRIMARY KEY ON CONFLICT IGNORE,
+password VARCHAR (512), privileges VARCHAR (512), last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_JKL (name VARCHAR (32) PRIMARY KEY ON CONFLICT IGNORE,
+password VARCHAR (512), privileges VARCHAR (512), last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_MNO (name VARCHAR (32) PRIMARY KEY ON CONFLICT IGNORE,
+password VARCHAR (512), privileges VARCHAR (512), last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_PQR (name VARCHAR (32) PRIMARY KEY ON CONFLICT IGNORE,
+password VARCHAR (512), privileges VARCHAR (512), last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_STU (name VARCHAR (32) PRIMARY KEY ON CONFLICT IGNORE,
+password VARCHAR (512), privileges VARCHAR (512), last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_VWX (name VARCHAR (32) PRIMARY KEY ON CONFLICT IGNORE,
+password VARCHAR (512), privileges VARCHAR (512), last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_YZ (name VARCHAR (32) PRIMARY KEY ON CONFLICT IGNORE,
+password VARCHAR (512), privileges VARCHAR (512), last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_09 (name VARCHAR (32) PRIMARY KEY ON CONFLICT IGNORE,
+password VARCHAR (512), privileges VARCHAR (512), last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_MISC (name VARCHAR (32) PRIMARY KEY ON CONFLICT IGNORE,
+password VARCHAR (512), privileges VARCHAR (512), last_login INTEGER);
+CREATE VIEW IF NOT EXISTS v_auth AS
+SELECT * FROM auth_ABC UNION
+SELECT * FROM auth_DEF UNION
+SELECT * FROM auth_GHI UNION
+SELECT * FROM auth_JKL UNION
+SELECT * FROM auth_MNO UNION
+SELECT * FROM auth_PQR UNION
+SELECT * FROM auth_STU UNION
+SELECT * FROM auth_VWX UNION
+SELECT * FROM auth_YZ UNION
+SELECT * FROM auth_09 UNION
+SELECT * FROM auth_MISC;
 CREATE TABLE IF NOT EXISTS _s (import BOOLEAN);
 ]]
 db_exec(create_db)
@@ -167,9 +166,8 @@ local function get_setting(column)
 end
 
 local function search(name)
-	local t = table_select(name)
 	local r,q = {}
-	q = "SELECT name FROM " .. t .. " WHERE name LIKE '%" .. name .. "%';"
+	q = "SELECT name FROM v_auth WHERE name LIKE '%" .. name .. "%';"
 	for row in db:nrows(q) do
 		r[#r+1] = row.name
 	end
@@ -178,12 +176,11 @@ end
 
 local function get_names()
 	local r,q = {}
-	for k,v in pairs(tt) do
-		q = ("SELECT name FROM %s;"):format(k)
-		for row in db:nrows(q) do
-			r[row.name] = true
-		end
+	q = "SELECT name FROM v_auth;"
+	for row in db:nrows(q) do
+		r[row.name] = true
 	end
+
 	return r
 end
 
