@@ -8,6 +8,27 @@ local MN = minetest.get_current_modname()
 local WP = minetest.get_worldpath()
 local ie = minetest.request_insecure_environment()
 
+-- conf file settings
+local caching = minetest.setting_get(MN .. '.caching') or false
+local max_cache_records = minetest.setting_get(MN .. '.cache_max') or 500
+local ttl = minetest.setting_get(MN..'.cache_ttl') or 86400 -- defaults to 24 hours
+
+
+-- db schema table names and search strings
+local tt = {
+	auth_ABC = "abc",
+	auth_DEF = "def",
+	auth_GHI = "ghi",
+	auth_JKL = "jkl",
+	auth_MNO = "mno",
+	auth_PQR = "pqr",
+	auth_STU = "stu",
+	auth_VWX = "vwx",
+	auth_YZ = "yx",
+	auth_09 = "0123456789",
+	auth_MISC = "-_"
+}
+
 if not ie then
 	error("insecure environment inaccessible"..
 		" - make sure this mod has been added to minetest.conf!")
@@ -15,7 +36,8 @@ end
 
 -- Requires library for db access
 local _sql = ie.require("lsqlite3")
--- Don't allow other mods to use this global library!
+
+-- Don't allow other mods to access this instance!
 if sqlite3 then sqlite3 = nil end
 
 local singleplayer = minetest.is_singleplayer()
@@ -36,27 +58,74 @@ local function db_exec(stmt)
 	end
 end
 
-local function cache_check(name)
-	local chk = false
-	for _,data in ipairs(minetest.get_connected_players()) do
-		if data:get_player_name() == name then
-			chk = true
-			break
+-- Iterate the db tables to create the cache
+local function fetch_cache()
+	local r = {}
+	for k,v in pairs(tt) do
+		local q = ([[SELECT * FROM %s
+		WHERE last_login > (SELECT max(last_login) FROM %s) - %s LIMIT %s;
+		]]):format(k, k, ttl, max_cache_records)
+		for row in db:nrows(q) do
+			r[#r+1] = row
 		end
 	end
-	if not chk then
-		auth_table[name] = nil
+	auth_table = r
+end
+
+-- Return the table name used to store the entry
+local function table_select(name)
+	local fc = name:sub(1,1)
+	fc = fc:lower()
+	for k, v in pairs(tt) do
+		if v:match(fc) then
+			return k
+		end
 	end
+	return "auth_MISC"
 end
 
 -- Db tables - because we need them!
 local create_db = [[
-CREATE TABLE IF NOT EXISTS auth (id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS auth_ABC (id INTEGER PRIMARY KEY AUTOINCREMENT,
+name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
+last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_DEF (id INTEGER PRIMARY KEY AUTOINCREMENT,
+name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
+last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_GHI (id INTEGER PRIMARY KEY AUTOINCREMENT,
+name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
+last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_JKL (id INTEGER PRIMARY KEY AUTOINCREMENT,
+name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
+last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_MNO (id INTEGER PRIMARY KEY AUTOINCREMENT,
+name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
+last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_PQR (id INTEGER PRIMARY KEY AUTOINCREMENT,
+name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
+last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_STU (id INTEGER PRIMARY KEY AUTOINCREMENT,
+name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
+last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_VWX (id INTEGER PRIMARY KEY AUTOINCREMENT,
+name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
+last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_YZ (id INTEGER PRIMARY KEY AUTOINCREMENT,
+name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
+last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_09 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
+last_login INTEGER);
+CREATE TABLE IF NOT EXISTS auth_misc (id INTEGER PRIMARY KEY AUTOINCREMENT,
 name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
 last_login INTEGER);
 CREATE TABLE IF NOT EXISTS _s (import BOOLEAN);
 ]]
 db_exec(create_db)
+
+if caching then
+	fetch_cache()
+end
 
 --[[
 ###########################
@@ -65,20 +134,24 @@ db_exec(create_db)
 ]]
 
 local function get_record(name)
+	if auth_table[name] then return auth_table[name] end
+	local tname = table_select(name)
+	if not tname then return 1 end
 	local query = ([[
-	    SELECT * FROM auth WHERE name = '%s' LIMIT 1;
-	]]):format(name)
+	    SELECT * FROM %s WHERE name = '%s' LIMIT 1;
+	]]):format(tname, name)
 	local it, state = db:nrows(query)
 	local row = it(state)
 	return row
 end
 
 local function check_name(name)
+	local tname = table_select(name)
 	local query = ([[
 		SELECT DISTINCT name
-		FROM auth
+		FROM %s
 		WHERE LOWER(name) = LOWER('%s') LIMIT 1;
-	]]):format(name)
+	]]):format(tname, name)
 	local it, state = db:nrows(query)
 	local row = it(state)
 	return row
@@ -94,8 +167,9 @@ local function get_setting(column)
 end
 
 local function search(name)
+	local t = table_select(name)
 	local r,q = {}
-	q = "SELECT name FROM auth WHERE name LIKE '%"..name.."%';"
+	q = "SELECT name FROM " .. t .. " WHERE name LIKE '%" .. name .. "%';"
 	for row in db:nrows(q) do
 		r[#r+1] = row.name
 	end
@@ -104,9 +178,11 @@ end
 
 local function get_names()
 	local r,q = {}
-	q = "SELECT name FROM auth;"
-	for row in db:nrows(q) do
-		r[row.name] = true
+	for k,v in pairs(tt) do
+		q = ("SELECT name FROM %s;"):format(k)
+		for row in db:nrows(q) do
+			r[row.name] = true
+		end
 	end
 	return r
 end
@@ -118,14 +194,15 @@ end
 ]]
 
 local function add_record(name, password, privs, last_login)
+	local tname = table_select(name)
 	local stmt = ([[
-		INSERT INTO auth (
+		INSERT INTO %s (
 		name,
 		password,
 		privileges,
 		last_login
     		) VALUES ('%s','%s','%s','%s')
-	]]):format(name, password, privs, last_login)
+	]]):format(tname, name, password, privs, last_login)
 	db_exec(stmt)
 end
 
@@ -137,31 +214,35 @@ local function add_setting(column, val)
 end
 
 local function update_login(name)
+	local tname = table_select(name)
 	local ts = os.time()
 	local stmt = ([[
-		UPDATE auth SET last_login = %i WHERE name = '%s'
-	]]):format(ts, name)
+		UPDATE %s SET last_login = %i WHERE name = '%s'
+	]]):format(tname, ts, name)
 	db_exec(stmt)
 end
 
 local function update_password(name, password)
+	local tname = table_select(name)
 	local stmt = ([[
-		UPDATE auth SET password = '%s' WHERE name = '%s'
-	]]):format(password,name)
+		UPDATE %s SET password = '%s' WHERE name = '%s'
+	]]):format(tname, password, name)
 	db_exec(stmt)
 end
 
 local function update_privileges(name, privs)
+	local tname = table_select(name)
 	local stmt = ([[
-		UPDATE auth SET privileges = '%s' WHERE name = '%s'
-	]]):format(privs,name)
+		UPDATE %s SET privileges = '%s' WHERE name = '%s'
+	]]):format(tname, privs, name)
 	db_exec(stmt)
 end
 
 local function del_record(name)
+	local tname = table_select(name)
 	local stmt = ([[
-		DELETE FROM auth WHERE name = '%s'
-	]]):format(name)
+		DELETE FROM %s WHERE name = '%s'
+	]]):format(tname, name)
 	db_exec(stmt)
 end
 
@@ -188,7 +269,7 @@ sauth.auth_handler = {
 		if r == nil then
 			r = get_record(name)
 	  	else
-		  	return auth_table[name]	-- cached copy			
+		  	return auth_table[name]	-- cached copy
 	  	end
 		-- Return nil on missing entry
 		if not r then return nil end
@@ -290,7 +371,7 @@ sauth.auth_handler = {
 	record_login = function(name)
 		assert(type(name) == 'string')
 		update_login(name)
-		
+
 		local auth = auth_table[name]
 		if auth then
 			auth.last_login = os.time()
@@ -315,13 +396,13 @@ sauth.auth_handler = {
 -- Manage import/export dependant on size
 if get_setting("import") == nil then
 	local importauth = {}
-	
+
 	local function tablelength(T)
   		local count = 0
   		for _ in pairs(T) do count = count + 1 end
   		return count
 	end
-	
+
 	local function save_sql(stmt)
 		-- save file
 		local file = ie.io.open(WP.."/auth.sql", "a")
@@ -356,7 +437,7 @@ if get_setting("import") == nil then
 		end
 		ie.io.close(file)
 	end
-	
+
 	local function export_auth()
 		local file, errmsg = ie.io.open(WP.."/auth.txt", 'rb')
 		if not file then
@@ -371,12 +452,13 @@ if get_setting("import") == nil then
 			if line ~= "" then
 				local fields = line:split(":", true)
 				local name, password, privs, last_login = unpack(fields)
+				local tname = table_select(name)
 				last_login = tonumber(last_login)
 				if not (name and password and privs) then
 					break -- can't use bad data
 				end
-				stmt = stmt..("INSERT INTO auth VALUES ('%s','%s','%s','%s','%s');\n"
-				):format(index, name, password, privs, last_login)
+				stmt = stmt..("INSERT INTO %s VALUES ('%s','%s','%s','%s','%s');\n"
+			):format(tname, index, name, password, privs, last_login)
 				save_sql(stmt)
 				stmt = ""
 				index = index + 1
@@ -407,20 +489,21 @@ if get_setting("import") == nil then
 		importauth = nil
 		add_setting("import", 'true') -- set db flag
 	end
-	
+
 	local function task()
 		-- load auth.txt
 		read_auth_file()
 		if tablelength(importauth) < 1 then
 			minetest.log("info", "[sban] nothing to import!")
 			return
-		end			
+		end
 		-- limit direct transfer to a sensible ~1 minute
 		if tablelength(importauth) < 3600 then db_import() end
 		-- are we there yet?
 		if get_setting("import") == nil then export_auth() end -- dump to sql
 		-- rename auth.txt otherwise it will still load!
 		ie.os.rename(WP.."/auth.txt", WP.."/auth.txt.bak")
+		-- legacy < v0.4.16
 		if core.auth_table then
 			core.auth_table = {} -- unload redundant data
 		end
@@ -438,14 +521,8 @@ end
 minetest.register_authentication_handler(sauth.auth_handler)
 minetest.log('action', MN .. ": Registered auth handler")
 
--- Housekeeping
-minetest.register_on_leaveplayer(function(player)
-	-- Schedule a check to see if the player has gone
-	minetest.after(60, cache_check, player:get_player_name())
-end)
-
 minetest.register_on_prejoinplayer(function(name, ip)
-	local r = get_record(name)	
+	local r = get_record(name)
 	if r ~= nil then
 		return
 	end
