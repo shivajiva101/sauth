@@ -24,11 +24,19 @@ insert statements to a file called auth.sql in the world folder and shuts the se
 
 Either way it will rename the original auth.txt to auth.txt.bak as it is not required for multiplayer games.
 
+Database schema updates are applied the same way except you use schema_update.sql copied from this mods folder to the world folder instead of auth.sql file. Note that only existing installations prior to this version will need to import schema_update.sql
+
 To enable the mod for singleplayer add:
 
 ```sauth.enable_singleplayer = true```
 
-to minetest.conf before starting the server.
+to minetest.conf before starting the server. Caching can be turned on and managed with these conf settings:
+
+```
+sauth.caching = true
+sauth.cache_max = 500
+sauth.cache_ttl = 86400
+```
 
 If you use player database you can easily keep the auth database clean of orphan entries using the shell script posted
 here https://forum.minetest.net/viewtopic.php?f=9&t=18604#p297350 by sofar.
