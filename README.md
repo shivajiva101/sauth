@@ -24,7 +24,14 @@ insert statements to a file called auth.sql in the world folder and shuts the se
 
 Either way it will rename the original auth.txt to auth.txt.bak as it is not required for multiplayer games.
 
-Database schema updates are applied the same way except you use schema_update.sql copied from this mods folder to the world folder instead of auth.sql file. Note that only existing installations prior to this version will need to import schema_update.sql
+Database schema updates are applied the same way except you use schema_update.sql copied from sauth/tools folder to the world folder instead of auth.sql file. Note that only existing installations prior to this version will need to import schema_update.sql
+
+    sqlite3
+    .open sauth.sqlite
+    .read schema_update.sql
+    .exit
+
+Should you need to revert the DB you can use schema_revert.sql in sauth/tools folder.
 
 To enable the mod for singleplayer add:
 
