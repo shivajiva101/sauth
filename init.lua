@@ -59,15 +59,19 @@ end
 
 -- Iterate the db tables to create the cache
 local function fetch_cache()
-	local q
-	local r = {}
-	q = ([[SELECT *	FROM v_auth
-	WHERE last_login > (SELECT max(last_login) FROM v_auth) - %s LIMIT %s;
-	]]):format(ttl, max_cache_records)
-	for row in db:nrows(q) do
-		r[#r+1] = row
+	local q = "SELECT max(last_login) AS result FROM v_auth;"
+	local it, state = db:nrows(q)
+	local last = it(state)
+	if last then
+		last = last.result - ttl
+		local r = {}
+		q = ([[SELECT *	FROM v_auth WHERE last_login > %s LIMIT %s;
+		]]):format(last, max_cache_records)
+		for row in db:nrows(q) do
+			r[#r+1] = row
+		end
+		auth_table = r
 	end
-	auth_table = r
 end
 
 -- Return the table name used to store the entry
@@ -107,16 +111,16 @@ password VARCHAR (512), privileges VARCHAR (512), last_login INTEGER);
 CREATE TABLE IF NOT EXISTS auth_MISC (name VARCHAR (32) PRIMARY KEY ON CONFLICT IGNORE,
 password VARCHAR (512), privileges VARCHAR (512), last_login INTEGER);
 CREATE VIEW IF NOT EXISTS v_auth AS
-SELECT * FROM auth_ABC UNION
-SELECT * FROM auth_DEF UNION
-SELECT * FROM auth_GHI UNION
-SELECT * FROM auth_JKL UNION
-SELECT * FROM auth_MNO UNION
-SELECT * FROM auth_PQR UNION
-SELECT * FROM auth_STU UNION
-SELECT * FROM auth_VWX UNION
-SELECT * FROM auth_YZ UNION
-SELECT * FROM auth_09 UNION
+SELECT * FROM auth_ABC UNION ALL
+SELECT * FROM auth_DEF UNION ALL
+SELECT * FROM auth_GHI UNION ALL
+SELECT * FROM auth_JKL UNION ALL
+SELECT * FROM auth_MNO UNION ALL
+SELECT * FROM auth_PQR UNION ALL
+SELECT * FROM auth_STU UNION ALL
+SELECT * FROM auth_VWX UNION ALL
+SELECT * FROM auth_YZ UNION ALL
+SELECT * FROM auth_09 UNION ALL
 SELECT * FROM auth_MISC;
 CREATE TABLE IF NOT EXISTS _s (import BOOLEAN);
 ]]
