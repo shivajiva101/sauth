@@ -23,7 +23,7 @@ local tt = {
 	auth_PQR = "pqr",
 	auth_STU = "stu",
 	auth_VWX = "vwx",
-	auth_YZ = "yx",
+	auth_YZ = "yz",
 	auth_09 = "0123456789",
 	auth_MISC = "-_"
 }
