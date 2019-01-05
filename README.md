@@ -1,6 +1,6 @@
 # sauth v1.1
 
-IMPORTANT: Existing users need to import sauth/tools/schema_updat.sql
+IMPORTANT: Existing users need to import sauth/tools/schema_update.sql
 
 An alternative auth handler for minetest using SQLite. Capable of handling large player databases whilst reducing the associated lag of having thousands of auth entries sat in memory. Only the players logged in are held in memory to act as cache, resulting in an increased playability experience. 
 
@@ -18,7 +18,7 @@ Your server should run mods in secure mode, you must add sauth to the list of tr
 
 	secure.trusted_mods = sauth
 
-The first time you start the server after adding this mod it will process your existing auth.txt and import the records if there are < 3600 otherwise it creates a file called auth.sql in the world folder for you to manually import, and shuts the server down so you can proceed to import the file. Here's the instructions to import auth.sql with sqlite3, navigate to the world folder in a terminal and use the commands:
+The first time you start the server after adding this mod it will process your existing auth.txt and import the records if there are less than 3600, otherwise it creates a file called auth.sql in the world folder for you to manually import, then shuts the server down so you can proceed to import the file. Here's the instructions to import auth.sql with sqlite3, navigate to the world folder in a terminal and use the commands:
 
     sqlite3 sauth.sqlite
     .read auth.sql
@@ -40,7 +40,7 @@ To enable the mod for singleplayer add:
 
 to minetest.conf before starting the server. 
 
-Enhanced caching can be turned on at the expense of memory consumption. When enabled, during server start the code loads up to 500 players with a login in the past 24 hours prior to the last player to login before the server was stopped. You can enable and manage it by adding these minetest.conf settings:
+Enhanced caching can be turned on at the expense of memory consumption. When enabled, during server start the mod loads up to 500 players with a login in the past 24 hours prior to the last player to login before the server was stopped. You can enable and manage it by adding these minetest.conf settings:
 
 	sauth.caching = true -- default is false
 	sauth.cache_max = 500 -- maximum number of memory cached entries on startup
