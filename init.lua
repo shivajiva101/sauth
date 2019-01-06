@@ -353,7 +353,7 @@ sauth.auth_handler = {
 			end
 		end
 		del_record(name)
-		auth_table[name] == nil
+		auth_table[name] = nil
 		return true
 	end,
 	set_password = function(name, password)
