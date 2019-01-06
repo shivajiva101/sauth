@@ -57,7 +57,8 @@ local function db_exec(stmt)
 	end
 end
 
--- Iterate the db tables to create the cache
+-- Iterate the db to create the cache
+local cap = 0
 local function fetch_cache()
 	local q = "SELECT max(last_login) AS result FROM v_auth;"
 	local it, state = db:nrows(q)
@@ -68,10 +69,28 @@ local function fetch_cache()
 		q = ([[SELECT *	FROM v_auth WHERE last_login > %s LIMIT %s;
 		]]):format(last, max_cache_records)
 		for row in db:nrows(q) do
-			r[#r+1] = row
+			auth_table[row.name] = {
+				password = row.password,
+				privileges = row.privileges,
+				last_login = row.last_login
+			}
 		end
 		auth_table = r
 	end
+end
+
+local function flush_cache()
+	if cap < max_cache_records then return end
+	local entry = os.time()
+	local stale
+	for k, v in pairs(auth_table) do
+		if v.last_login < entry then
+			entry = v.last_login
+			stale = k
+		end
+	end
+	auth_table[stale] = nil
+	cap = cap - 1
 end
 
 -- Return the table name used to store the entry
@@ -122,7 +141,7 @@ SELECT * FROM auth_VWX UNION ALL
 SELECT * FROM auth_YZ UNION ALL
 SELECT * FROM auth_09 UNION ALL
 SELECT * FROM auth_MISC;
-CREATE TABLE IF NOT EXISTS _s (import BOOLEAN);
+CREATE TABLE IF NOT EXISTS _s (import BOOLEAN, db_version VARCHAR (6));
 ]]
 db_exec(create_db)
 
@@ -304,7 +323,11 @@ sauth.auth_handler = {
 			privileges = privileges,
 			last_login = tonumber(r.last_login)
 			}
-		if not auth_table[name] and add_to_cache then auth_table[name] = record end -- Cache if reqd
+		-- Cache if reqd
+		if not auth_table[name] and add_to_cache then
+			auth_table[name] = record
+			cap = cap + 1
+		end
 		return record
 	end,
 	create_auth = function(name, password)
@@ -535,6 +558,10 @@ minetest.register_on_prejoinplayer(function(name, ip)
 			"Please check the spelling if it's your account "..
 			"or use a different nickname."):format(name, chk.name)
 	end
+end)
+
+minetest.register_on_joinplayer(function(player)
+	flush_cache()
 end)
 
 minetest.register_on_shutdown(function()
