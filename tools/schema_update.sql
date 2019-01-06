@@ -92,6 +92,9 @@ INSERT INTO auth_MISC SELECT name, password, privileges, last_login FROM auth;
 
 DROP TABLE auth;
 
+ALTER TABLE _s ADD COLUMN db_version VARCHAR (6);
+INSERT INTO _s (db_version) VALUES ('1.1');
+
 COMMIT;
 
 PRAGMA foreign_keys=on;
