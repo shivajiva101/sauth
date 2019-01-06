@@ -74,8 +74,8 @@ local function fetch_cache()
 				privileges = row.privileges,
 				last_login = row.last_login
 			}
+			cap = cap + 1
 		end
-		auth_table = r
 	end
 end
 
