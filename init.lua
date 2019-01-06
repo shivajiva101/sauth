@@ -8,6 +8,11 @@ local MN = minetest.get_current_modname()
 local WP = minetest.get_worldpath()
 local ie = minetest.request_insecure_environment()
 
+-- conf file settings
+local caching = minetest.setting_get(MN .. '.caching') or false
+local max_cache_records = minetest.setting_get(MN .. '.cache_max') or 500
+local ttl = minetest.setting_get(MN..'.cache_ttl') or 86400 -- defaults to 24 hours
+
 if not ie then
 	error("insecure environment inaccessible"..
 		" - make sure this mod has been added to minetest.conf!")
@@ -37,16 +42,20 @@ local function db_exec(stmt)
 	end
 end
 
-local function cache_check(name)
-	local chk = false
-	for _,data in ipairs(minetest.get_connected_players()) do
-		if data:get_player_name() == name then
-			chk = true
-			break
+-- Create the cache
+local function fetch_cache()
+	local q = "SELECT max(last_login) AS result FROM auth;"
+	local it, state = db:nrows(q)
+	local last = it(state)
+	if last then
+		last = last.result - ttl
+		local r = {}
+		q = ([[SELECT *	FROM auth WHERE last_login > %s LIMIT %s;
+		]]):format(last, max_cache_records)
+		for row in db:nrows(q) do
+			r[#r+1] = row
 		end
-	end
-	if not chk then
-		auth_table[name] = nil
+		auth_table = r
 	end
 end
 
@@ -59,6 +68,11 @@ INSERT INTO _s (db_version) VALUES ('1.1')
 ]]
 db_exec(create_db)
 
+-- create cache?
+if caching then
+	fetch_cache()
+end
+
 --[[
 ###########################
 ###  Database: Queries  ###
@@ -66,6 +80,7 @@ db_exec(create_db)
 ]]
 
 local function get_record(name)
+	if auth_table[name] then return auth_table[name] end
 	local query = ([[
 	    SELECT * FROM auth WHERE name = '%s' LIMIT 1;
 	]]):format(name)
@@ -233,7 +248,7 @@ sauth.auth_handler = {
 		if core.settings then
 			privs = core.settings:get("default_privs")
 		else
-			-- use old method
+			-- use old api method
 			privs = core.setting_get("default_privs")
 		end
 		-- Params: name, password, privs, last_login
@@ -243,7 +258,13 @@ sauth.auth_handler = {
 	delete_auth = function(name)
 		assert(type(name) == 'string')
 		-- Offline only!
-		if auth_table[name] == nil then del_record(name) end
+		for _,player in ipairs(minetest.get_connected_players()) do
+			if player:get_player_name() == name then
+				return false
+			end
+		end
+		del_record(name)
+		auth_table[name] == nil
 		return true
 	end,
 	set_password = function(name, password)
@@ -277,6 +298,7 @@ sauth.auth_handler = {
 		if core.settings then
 			admin = core.settings:get("name")
 		else
+			-- use old api method
 			admin = core.setting_get("name")
 		end
 		if name == admin then privs.privs = true end
@@ -348,7 +370,7 @@ if get_setting("import") == nil then
 				local name, password, privilege_string, last_login = unpack(fields)
 				last_login = tonumber(last_login)
 				if not (name and password and privilege_string) then
-					minetest.log("info", "Invalid line in auth.txt: "..dump(line))
+					minetest.log("info", "Invalid record in auth.txt: "..dump(line))
 					break
 				end
 				local privileges = minetest.string_to_privs(privilege_string)
@@ -381,7 +403,7 @@ if get_setting("import") == nil then
 				stmt = ""
 			end
 		end
-		stmt = "INSERT INTO _s (import) VALUES ('true');\n"
+		stmt = "INSERT INTO _s (import, db_version) VALUES ('true', '1.1');\n"
 		ie.io.close(file) -- close auth.txt
 		save_sql(stmt.."END;\n") -- finalise
 		ie.os.remove(WP.."/sauth.sqlite") -- remove existing db
