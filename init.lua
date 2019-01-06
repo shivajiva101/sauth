@@ -15,7 +15,8 @@ end
 
 -- Requires library for db access
 local _sql = ie.require("lsqlite3")
--- Don't allow other mods to use this global library!
+
+-- Prevent other mods using this instance!
 if sqlite3 then sqlite3 = nil end
 
 local singleplayer = minetest.is_singleplayer()
@@ -51,10 +52,10 @@ end
 
 -- Db tables - because we need them!
 local create_db = [[
-CREATE TABLE IF NOT EXISTS auth (id INTEGER PRIMARY KEY AUTOINCREMENT,
-name VARCHAR(32), password VARCHAR(512), privileges VARCHAR(512),
-last_login INTEGER);
-CREATE TABLE IF NOT EXISTS _s (import BOOLEAN);
+CREATE TABLE IF NOT EXISTS auth (name VARCHAR(32) PRIMARY KEY ON CONFLICT IGNORE,
+password VARCHAR(512), privileges VARCHAR(512), last_login INTEGER);
+CREATE TABLE IF NOT EXISTS _s (import BOOLEAN, db_version VARCHAR(6));
+INSERT INTO _s (db_version) VALUES ('1.1')
 ]]
 db_exec(create_db)
 
@@ -364,7 +365,6 @@ if get_setting("import") == nil then
 			return
 		end
 		remove_sql()
-		local index = 1
 		-- Create export file by appending lines
 		local stmt = create_db.."BEGIN;\n"
 		for line in file:lines() do
@@ -375,11 +375,10 @@ if get_setting("import") == nil then
 				if not (name and password and privs) then
 					break -- can't use bad data
 				end
-				stmt = stmt..("INSERT INTO auth VALUES ('%s','%s','%s','%s','%s');\n"
-				):format(index, name, password, privs, last_login)
+				stmt = stmt..("INSERT INTO auth VALUES ('%s','%s','%s','%s');\n"
+				):format(name, password, privs, last_login)
 				save_sql(stmt)
 				stmt = ""
-				index = index + 1
 			end
 		end
 		stmt = "INSERT INTO _s (import) VALUES ('true');\n"
@@ -437,12 +436,6 @@ end
 -- Register auth handler
 minetest.register_authentication_handler(sauth.auth_handler)
 minetest.log('action', MN .. ": Registered auth handler")
-
--- Housekeeping
-minetest.register_on_leaveplayer(function(player)
-	-- Schedule a check to see if the player has gone
-	minetest.after(60, cache_check, player:get_player_name())
-end)
 
 minetest.register_on_prejoinplayer(function(name, ip)
 	local r = get_record(name)	
