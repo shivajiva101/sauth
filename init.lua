@@ -347,7 +347,13 @@ sauth.auth_handler = {
 	delete_auth = function(name)
 		assert(type(name) == 'string')
 		-- Offline only!
-		if auth_table[name] == nil then del_record(name) end
+		for _,player in ipairs(minetest.get_connected_players()) do
+			if player:get_player_name() == name then
+				return false
+			end
+		end
+		del_record(name)
+		auth_table[name] == nil
 		return true
 	end,
 	set_password = function(name, password)
