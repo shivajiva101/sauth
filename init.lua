@@ -345,16 +345,14 @@ sauth.auth_handler = {
 		return true
 	end,
 	delete_auth = function(name)
+		-- TODO add logging! 
 		assert(type(name) == 'string')
-		-- Offline only!
-		for _,player in ipairs(minetest.get_connected_players()) do
-			if player:get_player_name() == name then
-				return false
-			end
+		local record = get_record(name)
+		if record then
+			del_record(name)
+			auth_table[name] = nil
+			return true
 		end
-		del_record(name)
-		auth_table[name] = nil
-		return true
 	end,
 	set_password = function(name, password)
 		assert(type(name) == 'string')
