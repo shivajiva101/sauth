@@ -9,9 +9,7 @@ local WP = minetest.get_worldpath()
 local ie = minetest.request_insecure_environment()
 
 -- conf file settings
-local caching = minetest.setting_get(MN .. '.caching') or false
 local max_cache_records = minetest.setting_get(MN .. '.cache_max') or 500
-local ttl = minetest.setting_get(MN..'.cache_ttl') or 86400 -- defaults to 24 hours
 
 -- db schema table names and search strings
 local tt = {
@@ -57,40 +55,21 @@ local function db_exec(stmt)
 	end
 end
 
--- Iterate the db to create the cache
 local cap = 0
-local function fetch_cache()
-	local q = "SELECT max(last_login) AS result FROM v_auth;"
-	local it, state = db:nrows(q)
-	local last = it(state)
-	if last then
-		last = last.result - ttl
-		local r = {}
-		q = ([[SELECT *	FROM v_auth WHERE last_login > %s LIMIT %s;
-		]]):format(last, max_cache_records)
-		for row in db:nrows(q) do
-			auth_table[row.name] = {
-				password = row.password,
-				privileges = row.privileges,
-				last_login = row.last_login
-			}
-			cap = cap + 1
-		end
-	end
-end
-
-local function flush_cache()
+local function trim_cache()
 	if cap < max_cache_records then return end
-	local entry = os.time()
-	local stale
+	local last_login = os.time()
+	local name
 	for k, v in pairs(auth_table) do
-		if v.last_login < entry then
-			entry = v.last_login
-			stale = k
+		if v.last_login < last_login then
+			last_login = v.last_login
+			name = k
 		end
 	end
-	auth_table[stale] = nil
-	cap = cap - 1
+	if name then
+		auth_table[name] = nil
+		cap = cap - 1
+	end
 end
 
 -- Return the table name used to store the entry
@@ -145,10 +124,6 @@ CREATE TABLE IF NOT EXISTS _s (import BOOLEAN, db_version VARCHAR (6));
 ]]
 db_exec(create_db)
 
-if caching then
-	fetch_cache()
-end
-
 --[[
 ###########################
 ###  Database: Queries  ###
@@ -158,7 +133,7 @@ end
 local function get_record(name)
 	if auth_table[name] then return auth_table[name] end
 	local tname = table_select(name)
-	if not tname then return 1 end
+	if not tname then return end
 	local query = ([[
 	    SELECT * FROM %s WHERE name = '%s' LIMIT 1;
 	]]):format(tname, name)
@@ -302,6 +277,7 @@ sauth.auth_handler = {
 		if core.settings then
 			admin = core.settings:get("name")
 		else
+			-- use old api
 			admin = core.setting_get("name")
 		end
 		-- If singleplayer, grant privileges marked give_to_singleplayer = true
@@ -337,7 +313,7 @@ sauth.auth_handler = {
 		if core.settings then
 			privs = core.settings:get("default_privs")
 		else
-			-- use old method
+			-- use old api
 			privs = core.setting_get("default_privs")
 		end
 		-- Params: name, password, privs, last_login
@@ -345,13 +321,13 @@ sauth.auth_handler = {
 		return true
 	end,
 	delete_auth = function(name)
-		-- TODO add logging! 
 		assert(type(name) == 'string')
 		local record = get_record(name)
 		if record then
 			del_record(name)
 			auth_table[name] = nil
-			return true
+			minetest.log("info", "[sauth] " .. name .. " record was deleted!")
+ 			return true
 		end
 	end,
 	set_password = function(name, password)
@@ -473,9 +449,8 @@ if get_setting("import") == nil then
 			return
 		end
 		remove_sql()
-		local index = 1
-		-- Create export file by appending lines
-		local stmt = create_db.."BEGIN;\n"
+		-- Create sql file by appending formatted lines
+		local stmt = create_db.."BEGIN TRANSACTION;\n"
 		for line in file:lines() do
 			if line ~= "" then
 				local fields = line:split(":", true)
@@ -485,16 +460,15 @@ if get_setting("import") == nil then
 				if not (name and password and privs) then
 					break -- can't use bad data
 				end
-				stmt = stmt..("INSERT INTO %s VALUES ('%s','%s','%s','%s','%s');\n"
-			):format(tname, index, name, password, privs, last_login)
+				stmt = stmt..("INSERT INTO %s VALUES ('%s','%s','%s','%s');\n"
+			):format(tname, name, password, privs, last_login)
 				save_sql(stmt)
 				stmt = ""
-				index = index + 1
 			end
 		end
-		stmt = "INSERT INTO _s (import) VALUES ('true');\n"
+		stmt = "INSERT INTO _s (import, db_version) VALUES ('true', '1.1');\n"
 		ie.io.close(file) -- close auth.txt
-		save_sql(stmt.."END;\n") -- finalise
+		save_sql(stmt.."COMMIT;\n") -- finalise
 		ie.os.remove(WP.."/sauth.sqlite") -- remove existing db
 		minetest.request_shutdown("Server Shutdown requested...", false, 5)
 	end
@@ -558,14 +532,14 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	local chk = check_name(name)
 	if chk then
 		return ("\nCannot create new player called '%s'. "..
-			"Another account called '%s' is already registered. "..
-			"Please check the spelling if it's your account "..
-			"or use a different nickname."):format(name, chk.name)
+			"Another account called '%s' is already registered.\n"..
+			"Please check the spelling if it is your account "..
+			"or use a different name."):format(name, chk.name)
 	end
 end)
 
 minetest.register_on_joinplayer(function(player)
-	flush_cache()
+	trim_cache()
 end)
 
 minetest.register_on_shutdown(function()
