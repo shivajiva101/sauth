@@ -9,9 +9,7 @@ local WP = minetest.get_worldpath()
 local ie = minetest.request_insecure_environment()
 
 -- conf file settings
-local caching = minetest.setting_get(MN .. '.caching') or false
 local max_cache_records = minetest.setting_get(MN .. '.cache_max') or 500
-local ttl = minetest.setting_get(MN..'.cache_ttl') or 86400 -- defaults to 24 hours
 
 if not ie then
 	error("insecure environment inaccessible"..
@@ -43,28 +41,7 @@ local function db_exec(stmt)
 end
 
 local cap = 0
--- Create the cache
-local function fetch_cache()
-	local q = "SELECT max(last_login) AS result FROM auth;"
-	local it, state = db:nrows(q)
-	local last = it(state)
-	if last then
-		last = last.result - ttl
-		local r = {}
-		q = ([[SELECT *	FROM auth WHERE last_login > %s LIMIT %s;
-		]]):format(last, max_cache_records)
-		for row in db:nrows(q) do
-			auth[row.name] = {
-				password = row.password,
-				privileges = row.privileges,
-				last_login = row.last_login
-			}
-			cap = cap + 1
-		end
-	end
-end
-
-local function flush_cache()
+local function trim_cache()
 	if cap < max_cache_records then return end
 	local entry = os.time()
 	local stale
@@ -75,6 +52,7 @@ local function flush_cache()
 		end
 	end
 	auth_table[stale] = nil
+	cap = cap - 1
 end
 
 -- Db tables - because we need them!
@@ -85,11 +63,6 @@ CREATE TABLE IF NOT EXISTS _s (import BOOLEAN, db_version VARCHAR(6));
 INSERT INTO _s (db_version) VALUES ('1.1')
 ]]
 db_exec(create_db)
-
--- create cache?
-if caching then
-	fetch_cache()
-end
 
 --[[
 ###########################
@@ -222,7 +195,7 @@ sauth.auth_handler = {
 		if r == nil then
 			r = get_record(name)
 	  	else
-		  	return auth_table[name]	-- cached copy			
+		  	return auth_table[name]	-- cached copy
 	  	end
 		-- Return nil on missing entry
 		if not r then return nil end
@@ -256,10 +229,11 @@ sauth.auth_handler = {
 			privileges = privileges,
 			last_login = tonumber(r.last_login)
 			}
+		-- Cache if reqd
 		if not auth_table[name] and add_to_cache then
 			auth_table[name] = record
 			cap = cap + 1
-		end -- Cache if reqd
+		end
 		return record
 	end,
 	create_auth = function(name, password)
@@ -278,15 +252,13 @@ sauth.auth_handler = {
 	end,
 	delete_auth = function(name)
 		assert(type(name) == 'string')
-		-- Offline only!
-		for _,player in ipairs(minetest.get_connected_players()) do
-			if player:get_player_name() == name then
-				return false
-			end
+		local record = get_record(name)
+		if record then
+			del_record(name)
+			auth_table[name] = nil
+			minetest.log("info", "[sauth] " .. name .. " record was deleted!")
+ 			return true
 		end
-		del_record(name)
-		auth_table[name] == nil
-		return true
 	end,
 	set_password = function(name, password)
 		assert(type(name) == 'string')
@@ -424,7 +396,7 @@ if get_setting("import") == nil then
 				stmt = ""
 			end
 		end
-		stmt = "INSERT INTO _s (import, db_version) VALUES ('true', '1.1');\n"
+		stmt = "INSERT INTO _s (import) VALUES ('true');\n"
 		ie.io.close(file) -- close auth.txt
 		save_sql(stmt.."END;\n") -- finalise
 		ie.os.remove(WP.."/sauth.sqlite") -- remove existing db
@@ -463,6 +435,7 @@ if get_setting("import") == nil then
 		if get_setting("import") == nil then export_auth() end -- dump to sql
 		-- rename auth.txt otherwise it will still load!
 		ie.os.rename(WP.."/auth.txt", WP.."/auth.txt.bak")
+		-- removed from later versions of minetest
 		if core.auth_table then
 			core.auth_table = {} -- unload redundant data
 		end
@@ -496,7 +469,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 end)
 
 minetest.register_on_joinplayer(function(player)
-	flush_cache()
+	trim_cache()
 end)
 
 minetest.register_on_shutdown(function()
