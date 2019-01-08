@@ -527,7 +527,9 @@ if get_setting("import") == nil then
 			end
 		end
 		importauth = nil
-		add_setting("import", 'true') -- set db flag
+		if not get_setting("import") then
+			add_setting("import", 'true') -- set db flag
+		end
 	end
 
 	local function task()
