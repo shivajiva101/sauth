@@ -156,7 +156,9 @@ end
 ]]
 
 local function get_record(name)
+	-- cached?
 	if auth_table[name] then return auth_table[name] end
+	-- select table name
 	local tname = table_select(name)
 	if not tname then return end
 	local query = ([[
@@ -263,6 +265,10 @@ local function del_record(name)
 		DELETE FROM %s WHERE name = '%s'
 	]]):format(tname, name)
 	db_exec(stmt)
+end
+
+if not get_setting('db_version') then
+	add_setting('db_version', '1.1')
 end
 
 --[[
@@ -513,11 +519,10 @@ if get_setting("import") == nil then
 			player_name = player_name[1].name
 		end
 		for name, stuff in pairs(importauth) do
-			local privs = minetest.privs_to_string(stuff.privileges)
 			if name ~= player_name then
-				add_record(name,stuff.password,privs,stuff.last_login)
+				add_record(name,stuff.password,stuff.privileges,stuff.last_login)
 			else
-				update_privileges(name, privs)
+				update_privileges(name, stuff.privileges)
 				update_password(name, stuff.password)
 			end
 		end
@@ -529,7 +534,7 @@ if get_setting("import") == nil then
 		-- load auth.txt
 		read_auth_file()
 		if tablelength(importauth) < 1 then
-			minetest.log("info", "[sban] nothing to import!")
+			minetest.log("info", "[sauth] nothing to import!")
 			return
 		end
 		-- limit direct transfer to a sensible ~1 minute
