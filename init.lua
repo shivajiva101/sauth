@@ -42,15 +42,16 @@ local function db_exec(stmt)
 	end
 end
 
+-- Cache handling
 local cap = 0
 local function fetch_cache()
-	local q = "SELECT max(last_login) AS result FROM v_auth;"
+	local q = "SELECT max(last_login) AS result FROM auth;"
 	local it, state = db:nrows(q)
 	local last = it(state)
 	if last then
 		last = last.result - ttl
 		local r = {}
-		q = ([[SELECT *	FROM v_auth WHERE last_login > %s LIMIT %s;
+		q = ([[SELECT *	FROM auth WHERE last_login > %s LIMIT %s;
 		]]):format(last, max_cache_records)
 		for row in db:nrows(q) do
 			auth_table[row.name] = {
@@ -96,7 +97,9 @@ end
 ]]
 
 local function get_record(name)
+	-- cached?
 	if auth_table[name] then return auth_table[name] end
+	-- fetch record
 	local query = ([[
 	    SELECT * FROM auth WHERE name = '%s' LIMIT 1;
 	]]):format(name)
@@ -197,6 +200,10 @@ local function del_record(name)
 	db_exec(stmt)
 end
 
+if not get_setting('db_version') then
+	add_setting('db_version', '1.1')
+end
+
 --[[
 ######################
 ###  Auth Handler  ###
@@ -286,7 +293,7 @@ sauth.auth_handler = {
 		if record then
 			del_record(name)
 			auth_table[name] = nil
-			minetest.log("info", "[sauth] " .. name .. " record was deleted!")
+			minetest.log("info", "[sauth] Db record for " .. name .. " was deleted!")
  			return true
 		end
 	end,
@@ -459,7 +466,7 @@ if get_setting("import") == nil then
 		-- load auth.txt
 		read_auth_file()
 		if tablelength(importauth) < 1 then
-			minetest.log("info", "[sban] nothing to import!")
+			minetest.log("info", "[sauth] nothing to import!")
 			return
 		end			
 		-- limit direct transfer to a sensible ~1 minute
