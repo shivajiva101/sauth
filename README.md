@@ -38,9 +38,12 @@ To enable the mod for singleplayer add:
 
 to minetest.conf before starting the server. 
 
-Run time caching is capped at 500 records. You can manage it by adding the following to minetest.conf
+Enhanced caching can be turned on at the expense of memory consumption. When enabled, during server start the mod loads up to 500 players with a login in the past 24 hours prior to the last player to login before the server was stopped. You can enable and manage it by adding these minetest.conf settings:
 
-	sauth.cache_max = 500 -- maximum number of memory cached entries
+	sauth.caching = true -- default is false
+	sauth.cache_max = 500 -- maximum number of memory cached entries on startup
+	sauth.cache_ttl = 86400 -- seconds deducted from last login
+
 
 If you use player database you can easily keep the auth database clean of orphan entries using the shell script posted
 here https://forum.minetest.net/viewtopic.php?f=9&t=18604#p297350 by sofar.
