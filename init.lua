@@ -450,16 +450,17 @@ if get_setting("import") == nil then
 			player_name = player_name[1].name
 		end
 		for name, stuff in pairs(importauth) do
-			local privs = minetest.privs_to_string(stuff.privileges)
 			if name ~= player_name then
-				add_record(name,stuff.password,privs,stuff.last_login)
+				add_record(name,stuff.password,stuff.privileges,stuff.last_login)
 			else
-				update_privileges(name, privs)
+				update_privileges(name, stuff.privileges)
 				update_password(name, stuff.password)
 			end
 		end
 		importauth = nil
-		add_setting("import", 'true') -- set db flag
+		if not get_setting("import") then
+			add_setting("import", 'true') -- set db flag
+		end
 	end
 	
 	local function task()
