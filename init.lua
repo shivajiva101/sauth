@@ -76,6 +76,7 @@ local function fetch_cache()
 			}
 			cap = cap + 1
 		end
+		minetest.log("info", "[sauth] cached " .. cap .. " records.")
 	end
 end
 
