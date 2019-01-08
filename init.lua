@@ -9,7 +9,9 @@ local WP = minetest.get_worldpath()
 local ie = minetest.request_insecure_environment()
 
 -- conf file settings
+local caching = minetest.setting_get(MN .. '.caching') or true
 local max_cache_records = minetest.setting_get(MN .. '.cache_max') or 500
+local ttl = minetest.setting_get(MN..'.cache_ttl') or 86400 -- defaults to 24 hours
 
 -- db schema table names and search strings
 local tt = {
@@ -23,7 +25,7 @@ local tt = {
 	auth_VWX = "vwx",
 	auth_YZ = "yz",
 	auth_09 = "0123456789",
-	auth_MISC = "-_"
+	auth_MISC = "%-%_"
 }
 
 if not ie then
@@ -55,21 +57,40 @@ local function db_exec(stmt)
 	end
 end
 
+-- Iterate the db to create the cache
 local cap = 0
+local function fetch_cache()
+	local q = "SELECT max(last_login) AS result FROM v_auth;"
+	local it, state = db:nrows(q)
+	local last = it(state)
+	if last then
+		last = last.result - ttl
+		local r = {}
+		q = ([[SELECT *	FROM v_auth WHERE last_login > %s LIMIT %s;
+		]]):format(last, max_cache_records)
+		for row in db:nrows(q) do
+			auth_table[row.name] = {
+				password = row.password,
+				privileges = minetest.string_to_privs(row.privileges),
+				last_login = row.last_login
+			}
+			cap = cap + 1
+		end
+	end
+end
+
 local function trim_cache()
 	if cap < max_cache_records then return end
-	local last_login = os.time()
+	local entry = os.time()
 	local name
 	for k, v in pairs(auth_table) do
-		if v.last_login < last_login then
-			last_login = v.last_login
+		if v.last_login < entry then
+			entry = v.last_login
 			name = k
 		end
 	end
-	if name then
-		auth_table[name] = nil
-		cap = cap - 1
-	end
+	auth_table[name] = nil
+	cap = cap - 1
 end
 
 -- Return the table name used to store the entry
@@ -123,6 +144,10 @@ SELECT * FROM auth_MISC;
 CREATE TABLE IF NOT EXISTS _s (import BOOLEAN, db_version VARCHAR (6));
 ]]
 db_exec(create_db)
+
+if caching then
+	fetch_cache()
+end
 
 --[[
 ###########################
@@ -178,7 +203,6 @@ local function get_names()
 	for row in db:nrows(q) do
 		r[row.name] = true
 	end
-
 	return r
 end
 
@@ -263,16 +287,20 @@ sauth.auth_handler = {
 		-- Check and load db record if reqd
 		if r == nil then
 			r = get_record(name)
-	  	else
-		  	return auth_table[name]	-- cached copy
 	  	end
 		-- Return nil on missing entry
-		if not r then return nil end
+		if r == nil then return r end
 		-- Figure out what privileges the player should have.
 		-- Take a copy of the players privilege table
 		local privileges, admin = {}
-		for priv, _ in pairs(minetest.string_to_privs(r.privileges)) do
-			privileges[priv] = true
+		if type(r.privileges) == "string" then
+			-- db record
+			for priv, _ in pairs(minetest.string_to_privs(r.privileges)) do
+				privileges[priv] = true
+			end
+		else
+			-- cache
+			privileges = r.privileges
 		end
 		if core.settings then
 			admin = core.settings:get("name")
@@ -322,13 +350,15 @@ sauth.auth_handler = {
 	end,
 	delete_auth = function(name)
 		assert(type(name) == 'string')
-		local record = get_record(name)
-		if record then
-			del_record(name)
-			auth_table[name] = nil
-			minetest.log("info", "[sauth] " .. name .. " record was deleted!")
- 			return true
+		-- Offline only!
+		for _,player in ipairs(minetest.get_connected_players()) do
+			if player:get_player_name() == name then
+				return false
+			end
 		end
+		del_record(name)
+		auth_table[name] = nil
+		return true
 	end,
 	set_password = function(name, password)
 		assert(type(name) == 'string')
@@ -435,8 +465,11 @@ if get_setting("import") == nil then
 					minetest.log("info", "Invalid line in auth.txt: "..dump(line))
 					break
 				end
-				local privileges = minetest.string_to_privs(privilege_string)
-				importauth[name] = {password=password, privileges=privileges, last_login=last_login}
+				importauth[name] = {
+					password = password,
+					privileges = privilege_string,
+					last_login = last_login
+				}
 			end
 		end
 		ie.io.close(file)
