@@ -28,6 +28,10 @@ DROP TABLE auth_YZ;
 DROP TABLE auth_09;
 DROP TABLE auth_MISC;
 
+DROP TABLE _s;
+CREATE TABLE _s (import BOOLEAN, db_version VARCHAR (6));
+INSERT INTO _s VALUES ('true', '1.1');
+                                                     
 COMMIT;
 
 PRAGMA foreign_keys=on;
