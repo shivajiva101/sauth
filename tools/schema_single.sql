@@ -4,7 +4,7 @@ BEGIN TRANSACTION;
 
 CREATE TABLE IF NOT EXISTS auth (name VARCHAR(32) PRIMARY KEY ON CONFLICT IGNORE, password VARCHAR(512), privileges VARCHAR(512), last_login INTEGER);
 
-INSERT INTO auth (name, password, privileges, last_login) SELECT name, password, privileges, last_login FROM auth_ABC
+INSERT INTO auth (name, password, privileges, last_login) SELECT name, password, privileges, last_login FROM auth_ABC;
 INSERT INTO auth (name, password, privileges, last_login) SELECT name, password, privileges, last_login FROM auth_DEF;
 INSERT INTO auth (name, password, privileges, last_login) SELECT name, password, privileges, last_login FROM auth_GHI;
 INSERT INTO auth (name, password, privileges, last_login) SELECT name, password, privileges, last_login FROM auth_JKL;
