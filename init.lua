@@ -9,9 +9,9 @@ local WP = minetest.get_worldpath()
 local ie = minetest.request_insecure_environment()
 
 -- conf file settings
-local caching = minetest.setting_get(MN .. '.caching') or false
-local max_cache_records = minetest.setting_get(MN .. '.cache_max') or 500
-local ttl = minetest.setting_get(MN..'.cache_ttl') or 86400 -- defaults to 24 hours
+local caching = minetest.setting_getbool(MN .. '.caching') or false
+local max_cache_records = tonumber(minetest.setting_get(MN .. '.cache_max')) or 500
+local ttl = tonumber(minetest.setting_get(MN..'.cache_ttl')) or 86400 -- defaults to 24 hours
 
 if not ie then
 	error("insecure environment inaccessible"..
