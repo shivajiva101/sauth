@@ -9,9 +9,10 @@ local WP = minetest.get_worldpath()
 local ie = minetest.request_insecure_environment()
 
 -- conf file settings
-local caching = minetest.setting_getbool(MN .. '.caching') or false
-local max_cache_records = tonumber(minetest.setting_get(MN .. '.cache_max')) or 500
-local ttl = tonumber(minetest.setting_get(MN..'.cache_ttl')) or 86400 -- defaults to 24 hours
+local caching = minetest.settings:get_bool(MN .. '.caching', false)
+local max_cache_records = tonumber(minetest.settings:get(MN .. '.cache_max')) or 500
+local ttl = tonumber(minetest.settings:get(MN..'.cache_ttl')) or 86400 -- defaults to 24 hours
+local owner = core.settings:get("name")
 
 if not ie then
 	error("insecure environment inaccessible"..
@@ -27,7 +28,7 @@ if sqlite3 then sqlite3 = nil end
 local singleplayer = minetest.is_singleplayer()
 
 -- Use conf setting to determine handler for singleplayer
-if not minetest.setting_get(MN .. '.enable_singleplayer')
+if not minetest.settings:get_bool(MN .. '.enable_singleplayer')
 and singleplayer then
 	  minetest.log("info", "singleplayer game using builtin auth handler")
 	  return
@@ -215,38 +216,19 @@ sauth.auth_handler = {
 	get_auth = function(name, add_to_cache)
 		-- Return password,privileges,last_login
 		assert(type(name) == 'string')
-		-- catch empty names for mods that do privilege checks
-		if name == nil or name == '' or name == ' ' then
-			minetest.log("info", "[sauth] Name missing in call to get_auth. Rejected.")
-			return nil
-		end
+		
 		-- catch ' passed in name string to prevent crash
 		if name:find("%'") then return nil end
 		add_to_cache = add_to_cache or true -- Assert caching on missing param
-		local r = auth_table[name]
-		-- Check and load db record if reqd
-		if r == nil then
-			r = get_record(name)
-	  	end
-		-- Return nil on missing entry
-		if not r then return nil end
+		local auth_entry =  auth_table[name] or get_record(name)
+		if not auth_entry then return nil end
 		-- Figure out what privileges the player should have.
 		-- Take a copy of the players privilege table
-		local privileges, admin = {}
-		if type(r.privileges) == "string" then
-			-- db record
-			for priv, _ in pairs(minetest.string_to_privs(r.privileges)) do
-				privileges[priv] = true
-			end
+		local privileges = {}
+		if type(auth_entry.privileges) == "string" then
+			privileges = minetest.string_to_privs(auth_entry.privileges)
 		else
-			-- cache
-			privileges = r.privileges
-		end
-		if core.settings then
-			admin = core.settings:get("name")
-		else
-			-- use old api
-			admin = core.setting_get("name")
+			privileges = auth_entry.privileges
 		end
 		-- If singleplayer, grant privileges marked give_to_singleplayer = true
 		if core.is_singleplayer() then
@@ -256,16 +238,16 @@ sauth.auth_handler = {
 				end
 			end
 		-- If admin, grant all privileges
-		elseif name == admin then
+		elseif name == owner then
 			for priv, def in pairs(core.registered_privileges) do
 				privileges[priv] = true
 			end
 		end
 		-- Construct record
 		local record = {
-			password = r.password,
+			password = auth_entry.password,
 			privileges = privileges,
-			last_login = tonumber(r.last_login)
+			last_login = tonumber(auth_entry.last_login)
 			}
 		-- Cache if reqd
 		if not auth_table[name] and add_to_cache then
@@ -278,12 +260,7 @@ sauth.auth_handler = {
 		assert(type(name) == 'string')
 		assert(type(password) == 'string')
 		local ts, privs = os.time()
-		if core.settings then
-			privs = core.settings:get("default_privs")
-		else
-			-- use old api
-			privs = core.setting_get("default_privs")
-		end
+		privs = core.settings:get("default_privs")
 		-- Params: name, password, privs, last_login
 		add_record(name,password,privs,ts)
 		return true
@@ -310,29 +287,33 @@ sauth.auth_handler = {
 		end
 		return true
 	end,
-	set_privileges = function(name, privs)
+	set_privileges = function(name, privileges)
 		assert(type(name) == 'string')
-		assert(type(privs) == 'table')
-		if not sauth.auth_handler.get_auth(name) then
+		assert(type(privileges) == 'table')
+		local auth_entry = sauth.auth_handler.get_auth(name)
+		if not auth_entry then
 	    		-- create the record
-			if core.settings then
-				sauth.auth_handler.create_auth(name,
+			auth_entry = sauth.auth_handler.create_auth(name,
 					core.get_password_hash(name,
 						core.settings:get("default_password")))
-			else
-				sauth.auth_handler.create_auth(name,
-					core.get_password_hash(name,
-						core.setting_get("default_password")))
+
+		end
+		local admin = core.settings:get("name")	
+		-- Run grant callbacks
+		for priv, _ in pairs(privileges) do
+			if not auth_entry.privileges[priv] then
+				core.run_priv_callbacks(name, priv, nil, "grant")
 			end
 		end
-		local admin
-		if core.settings then
-			admin = core.settings:get("name")
-		else
-			-- use old api method
-			admin = core.setting_get("name")
+		-- Run revoke callbacks
+		for priv, _ in pairs(auth_entry.privileges) do
+			if not privileges[priv] then
+				core.run_priv_callbacks(name, priv, nil, "revoke")
+			end
 		end
+		-- Ensure owner has ability to grant
 		if name == admin then privs.privs = true end
+		-- Update sources
 		update_privileges(name, minetest.privs_to_string(privs))
 		if auth_table[name] then auth_table[name].privileges = privs end
 		minetest.notify_authentication_modified(name)
