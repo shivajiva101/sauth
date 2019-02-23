@@ -62,7 +62,7 @@ local function fetch_cache()
 			cap = cap + 1
 		end
 	end
-	minetest.log("action", "[sauth] cached " .. cap .. " records."
+	minetest.log("action", "[sauth] cached " .. cap .. " records.")
 end
 
 local function trim_cache()
