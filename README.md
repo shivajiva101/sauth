@@ -1,6 +1,6 @@
 # sauth v1.1
 
-IMPORTANT: Existing users need to import sauth/tools/schema_update.sql
+IMPORTANT: USE either 0.4 or 0.5 branch depending on your server version. Existing users need to import sauth/tools/schema_update.sql
 
 An alternative auth handler for minetest using SQLite. Capable of handling large player databases whilst reducing the associated lag of having thousands of auth entries sat in memory. Only the players logged in are held in memory to act as cache, resulting in an increased playability experience. 
 
