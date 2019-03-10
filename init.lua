@@ -201,7 +201,7 @@ local function del_record(name)
 	db_exec(stmt)
 end
 
-if not get_setting('db_version') then
+if not get_setting('db_version').db_version then
 	add_setting('db_version', '1.1')
 end
 
@@ -367,7 +367,7 @@ sauth.auth_handler = {
 ]]
 
 -- Manage import/export dependant on size
-if get_setting("import") == nil then
+if get_setting("import").import == nil then
 	local importauth = {}
 	
 	local function tablelength(T)
