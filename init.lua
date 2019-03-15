@@ -127,7 +127,7 @@ local function get_setting(column)
 	]]):format(column)
 	local it, state = db:nrows(query)
 	local row = it(state)
-	return row
+	if row then return row[column] end
 end
 
 local function search(name)
