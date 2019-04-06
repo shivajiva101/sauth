@@ -20,17 +20,13 @@ Your server should run mods in secure mode, you must add sauth to the list of tr
 
 The first time you start the server after adding this mod it will process your existing auth.txt and import the records if there are less than 3600, otherwise it creates a file called auth.sql in the world folder for you to manually import, then shuts the server down so you can proceed to import the file. Here's the instructions to import auth.sql with sqlite3, navigate to the world folder in a terminal and use the commands:
 
-    sqlite3 sauth.sqlite
-    .read auth.sql
-    .exit
+    sqlite3 sauth.sqlite ".read auth.sql"
 
 Be aware that it is a requirement that you import the database BEFORE restarting minetest or the server will create another database and duplicate entries for any players logging in before the import. If this happens you can shutdown the server and delete sauth.sqlite and then perform the import steps. Either way the original auth.txt is renamed to auth.txt.bak as it's not required for multiplayer games.
 
 Database schema updates are applied the same way except you use schema_update.sql copied from sauth/tools folder to the world folder instead of auth.sql file. Note that only existing Db's prior to this version will need to import schema_update.sql
 
-    sqlite3 sauth.sqlite
-    .read schema_update.sql
-    .exit
+    sqlite3 sauth.sqlite ".read schema_update.sql"
 
 To enable the mod for singleplayer add:
 
