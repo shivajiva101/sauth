@@ -339,7 +339,8 @@ sauth.auth_handler = {
 		return search(name)
 	end,
 	iterate = function()
-		return get_names()
+		local names = get_names()
+		return pairs(names) 
 	end,
 }
 
