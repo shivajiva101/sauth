@@ -161,7 +161,7 @@ local function add_record(name, password, privs, last_login)
 		password,
 		privileges,
 		last_login
-    		) VALUES ('%s','%s','%s','%s')
+		) VALUES ('%s','%s','%s','%s')
 	]]):format(name, password, privs, last_login)
 	db_exec(stmt)
 end
@@ -272,7 +272,7 @@ sauth.auth_handler = {
 			del_record(name)
 			auth_table[name] = nil
 			minetest.log("info", "[sauth] Db record for " .. name .. " was deleted!")
- 			return true
+			return true
 		end
 	end,
 	set_password = function(name, password)
@@ -292,7 +292,7 @@ sauth.auth_handler = {
 		assert(type(privileges) == 'table')
 		local auth_entry = sauth.auth_handler.get_auth(name)
 		if not auth_entry then
-	    		-- create the record
+			-- create the record
 			auth_entry = sauth.auth_handler.create_auth(name,
 					minetest.get_password_hash(name,
 						minetest.settings:get("default_password")))
@@ -340,10 +340,9 @@ sauth.auth_handler = {
 	end,
 	iterate = function()
 		local names = get_names()
-		return pairs(names) 
+		return pairs(names)
 	end,
 }
-
 
 --[[
 ########################
