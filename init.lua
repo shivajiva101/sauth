@@ -471,7 +471,7 @@ if get_setting("import") == nil then
 		if tablelength(importauth) < 1 then
 			minetest.log("info", "[sauth] nothing to import!")
 			return
-		end			
+		end		
 		-- limit direct transfer to a sensible ~1 minute
 		if tablelength(importauth) < 3600 then db_import() end
 		-- are we there yet?
@@ -479,9 +479,9 @@ if get_setting("import") == nil then
 		-- rename auth.txt otherwise it will still load!
 		ie.os.rename(WP.."/auth.txt", WP.."/auth.txt.bak")
 		-- removed from later versions of minetest
-		if minetest.auth_table then
-			minetest.auth_table = {} -- unload redundant data
-		end
+		--if minetest.auth_table then
+			--minetest.auth_table = {} -- unload redundant data
+		--end
 		minetest.notify_authentication_modified()
 	end
 	minetest.after(5, task)
