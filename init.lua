@@ -249,14 +249,14 @@ sauth.auth_handler = {
 		end
 		-- If singleplayer, grant privileges marked give_to_singleplayer = true
 		if minetest.is_singleplayer() then
-			for priv, def in pairs(core.registered_privileges) do
+			for priv, def in pairs(minetest.registered_privileges) do
 				if def.give_to_singleplayer then
 					privileges[priv] = true
 				end
 			end
 		-- If admin, grant all privileges
 		elseif name == admin then
-			for priv, def in pairs(core.registered_privileges) do
+			for priv, def in pairs(minetest.registered_privileges) do
 				privileges[priv] = true
 			end
 		end
@@ -276,7 +276,8 @@ sauth.auth_handler = {
 	create_auth = function(name, password)
 		assert(type(name) == 'string')
 		assert(type(password) == 'string')
-		local ts, privs = os.time()
+		local ts = os.time()
+		local privs
 		if minetest.settings then
 			privs = minetest.settings:get("default_privs")
 		else
