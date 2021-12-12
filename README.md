@@ -1,4 +1,6 @@
 # sauth v1.1
+[![Build status](https://github.com/shivajiva101/sauth/workflows/Check%20&%20Release/badge.svg)](https://github.com/shivajiva101/sauth/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 IMPORTANT: USE either 0.4 or 0.5 branch depending on your server version. Existing users need to import sauth/tools/schema_update.sql
 
