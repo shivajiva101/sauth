@@ -295,7 +295,7 @@ sauth.auth_handler = {
 			del_record(name)
 			auth_table[name] = nil
 			minetest.log("info", "[sauth] Db record for " .. name .. " was deleted!")
- 			return true
+			return true
 		end
 	end,
 	set_password = function(name, password)
@@ -314,8 +314,8 @@ sauth.auth_handler = {
 		assert(type(name) == 'string')
 		assert(type(privs) == 'table')
 		if not sauth.auth_handler.get_auth(name) then
-	    		-- create the record
-			if core.settings then
+			-- create the record
+			if minetest.settings then
 				sauth.auth_handler.create_auth(name,
 					minetest.get_password_hash(name,
 						minetest.settings:get("default_password")))
@@ -344,7 +344,7 @@ sauth.auth_handler = {
 	record_login = function(name)
 		assert(type(name) == 'string')
 		update_login(name)
-		
+
 		local auth = auth_table[name]
 		if auth then
 			auth.last_login = os.time()
@@ -370,13 +370,13 @@ sauth.auth_handler = {
 -- Manage import/export dependant on size
 if get_setting("import") == nil then
 	local importauth = {}
-	
+
 	local function tablelength(T)
-  		local count = 0
-  		for _ in pairs(T) do count = count + 1 end
-  		return count
+		local count = 0
+		for _ in pairs(T) do count = count + 1 end
+		return count
 	end
-	
+
 	local function save_sql(stmt)
 		-- save file
 		local file = ie.io.open(WP.."/auth.sql", "a")
@@ -406,15 +406,15 @@ if get_setting("import") == nil then
 					break
 				end
 				importauth[name] = {
-					password = password, 
-					privileges = privilege_string, 
+					password = password,
+					privileges = privilege_string,
 					last_login = last_login
 				}
 			end
 		end
 		ie.io.close(file)
 	end
-	
+
 	local function export_auth()
 		local file, errmsg = ie.io.open(WP.."/auth.txt", 'rb')
 		if not file then
@@ -447,7 +447,7 @@ if get_setting("import") == nil then
 
 	local function db_import()
 		-- local instance creates player, update or duplication occurs!
-		local player_name = core.get_connected_players() or ""
+		local player_name = minetest.get_connected_players() or ""
 		if type(player_name) == 'table' and #player_name > 0 then
 			player_name = player_name[1].name
 		end
@@ -464,7 +464,7 @@ if get_setting("import") == nil then
 			add_setting("import", 'true') -- set db flag
 		end
 	end
-	
+
 	local function task()
 		-- load auth.txt
 		read_auth_file()
@@ -479,10 +479,10 @@ if get_setting("import") == nil then
 		-- rename auth.txt otherwise it will still load!
 		ie.os.rename(WP.."/auth.txt", WP.."/auth.txt.bak")
 		-- removed from later versions of minetest
-		if core.auth_table then
-			core.auth_table = {} -- unload redundant data
+		if minetest.auth_table then
+			minetest.auth_table = {} -- unload redundant data
 		end
-		core.notify_authentication_modified()
+		minetest.notify_authentication_modified()
 	end
 	minetest.after(5, task)
 end
@@ -497,7 +497,7 @@ minetest.register_authentication_handler(sauth.auth_handler)
 minetest.log('action', MN .. ": Registered auth handler")
 
 minetest.register_on_prejoinplayer(function(name, ip)
-	local r = get_record(name)	
+	local r = get_record(name)
 	if r ~= nil then
 		return
 	end
