@@ -471,7 +471,7 @@ if get_setting("import") == nil then
 		if tablelength(importauth) < 1 then
 			minetest.log("info", "[sauth] nothing to import!")
 			return
-		end		
+		end
 		-- limit direct transfer to a sensible ~1 minute
 		if tablelength(importauth) < 3600 then db_import() end
 		-- are we there yet?
