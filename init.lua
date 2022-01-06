@@ -391,7 +391,10 @@ sauth.auth_handler = {
 		end
 	end,
 
-
+	--- Create a new auth entry
+	---@param name string
+	---@param password string
+	---@return boolean
 	create_auth = function(name, password)
 		assert(type(name) == 'string')
 		assert(type(password) == 'string')
@@ -409,6 +412,9 @@ sauth.auth_handler = {
 	end,
 
 
+	--- Delete an auth entry
+	---@param name string
+	---@return boolean
 	delete_auth = function(name)
 		assert(type(name) == 'string')
 		local record = get_record(name)
@@ -418,9 +424,13 @@ sauth.auth_handler = {
 			minetest.log("info", "[sauth] Db record for " .. name .. " was deleted!")
 			return true
 		end
+		return false
 	end,
 
-
+	--- Set password for an auth record
+	---@param name string
+	---@param password string
+	---@return boolean
 	set_password = function(name, password)
 		assert(type(name) == 'string')
 		assert(type(password) == 'string')
@@ -434,6 +444,10 @@ sauth.auth_handler = {
 		return true
 	end,
 
+	--- Set privileges for an auth record
+	---@param name string
+	---@param privileges string
+	---@return boolean
 	set_privileges = function(name, privileges)
 		assert(type(name) == 'string')
 		assert(type(privileges) == 'table')
@@ -464,19 +478,34 @@ sauth.auth_handler = {
 		minetest.notify_authentication_modified(name)
 		return true
 	end,
+
+	--- Reload database
+	---@param return boolean
 	reload = function()
 		-- deprecated due to the change in storage mechanism but maybe useful
 		-- for cache regeneration
 		return true
 	end,
+
+	--- Records the last login timestamp
+	---@param name string
+	---@return boolean
+	---@return string error message
 	record_login = function(name)
 		assert(type(name) == 'string')
 		return update_login(name)
 	end,
+
+	--- Searches for names like param
+	---@param name string
+	---@return table ipairs
 	name_search = function(name)
 		assert(type(name) == 'string')
 		return search(name)
 	end,
+
+	--- Return an iterator function for the auth table names
+	---@return function iterator
 	iterate = function()
 		local names = get_names()
 		return pairs(names)
@@ -489,8 +518,11 @@ sauth.auth_handler = {
 ###  Register hooks  ###
 ########################
 ]]
+
 -- Register auth handler
 minetest.register_authentication_handler(sauth.auth_handler)
+
+-- Log event as minetest registers silently
 minetest.log('action', "[sauth] now registered as the authentication handler")
 
 minetest.register_on_prejoinplayer(function(name, ip)
