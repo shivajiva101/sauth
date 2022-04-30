@@ -59,7 +59,7 @@ local function create_cache()
 	local q = "SELECT max(last_login) AS result FROM auth;"
 	local it, state = db:nrows(q)
 	local last = it(state)
-	if last then
+	if last and last.result ~= nil then
 		last = last.result - ttl
 		q = ([[SELECT *	FROM auth WHERE last_login > %s LIMIT %s;
 		]]):format(last, max_cache_records)
