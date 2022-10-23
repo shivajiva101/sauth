@@ -290,8 +290,8 @@ end
 ---@param name string
 ---@return table pairs
 local function get_record(name)
-	-- Prioritise cache
-	if cache[name] then return cache[name] end
+	-- Prioritise cache if enabled
+	if caching and cache[name] then return cache[name] end
 	return get_player_record(name)
 end
 
@@ -302,7 +302,7 @@ end
 ---@return string error message
 local function update_login(name)
 	local ts = os.time()
-	cache[name].last_login = ts
+	if caching then cache[name].last_login = ts
 	return update_auth_login(name, ts)
 end
 
@@ -327,7 +327,7 @@ sauth.auth_handler = {
 
 		-- if an auth record exists in the cache the only
 		-- other check reqd is that the owner has all privs
-		if cache[name] then
+		if caching and cache[name] then
 			if not owner_privs_cached and name == owner then
 				-- grant all privs
 				for priv, def in pairs(minetest.registered_privileges) do
@@ -342,7 +342,7 @@ sauth.auth_handler = {
 		if name:find("%'") then return nil end
 
 		-- Assert caching on missing param
-		add_to_cache = add_to_cache or true
+		add_to_cache = add_to_cache or caching
 
 		-- Check db for matching record
 		local auth_entry = get_player_record(name)
@@ -352,7 +352,7 @@ sauth.auth_handler = {
 
 		-- Make a copy of the players privilege table.
 		-- Data originating from the db is a string
-		-- so it must be mutated to a table
+		-- so it must be cast to a table
 		local privileges
 		if type(auth_entry.privileges) == "string" then
 			-- Reconstruct table using minetest function
@@ -420,7 +420,7 @@ sauth.auth_handler = {
 		local record = get_record(name)
 		if record then
 			del_record(name)
-			cache[name] = nil
+			if caching then cache[name] = nil end
 			minetest.log("info", "[sauth] Db record for " .. name .. " was deleted!")
 			return true
 		end
@@ -541,7 +541,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 end)
 
 minetest.register_on_joinplayer(function(player)
-	trim_cache()
+	if caching then trim_cache() end
 end)
 
 minetest.register_on_shutdown(function()
