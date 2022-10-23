@@ -302,7 +302,7 @@ end
 ---@return string error message
 local function update_login(name)
 	local ts = os.time()
-	if caching then cache[name].last_login = ts
+	if caching then cache[name].last_login = ts end
 	return update_auth_login(name, ts)
 end
 
