@@ -15,7 +15,7 @@ if not ie then
 end
 
 -- read mt conf file settings
-local caching = minetest.settings:get_bool(MN .. '.caching') or true
+local caching = minetest.settings:get_bool(MN .. '.caching', true)
 local max_cache_records = tonumber(minetest.settings:get(MN .. '.cache_max')) or 500
 local ttl = tonumber(minetest.settings:get(MN..'.cache_ttl')) or 86400 -- defaults to 24 hours
 local owner = minetest.settings:get("name")
@@ -302,7 +302,13 @@ end
 ---@return string error message
 local function update_login(name)
 	local ts = os.time()
-	if caching then cache[name].last_login = ts end
+	if caching and cache[name] then
+		cache[name].last_login = ts
+	else
+		if caching then
+			minetest.get_auth_handler().get_auth(name)
+		end
+	end
 	return update_auth_login(name, ts)
 end
 
