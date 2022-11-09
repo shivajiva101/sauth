@@ -305,7 +305,13 @@ end
 ---@return string error message
 local function update_login(name)
 	local ts = os.time()
-	if caching then cache[name].last_login = ts end
+	if caching then
+		if cache[name] then
+			cache[name].last_login = ts
+		else
+			sauth.auth_handler.get_auth(name)
+		end
+	end
 	return update_auth_login(name, ts)
 end
 
