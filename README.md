@@ -49,3 +49,22 @@ and manage the cache by adding these settings to minetest.conf and modifying the
 
 If you use player database you can keep the auth database clean of orphan entries using the shell script posted
 here https://forum.minetest.net/viewtopic.php?f=9&t=18604#p297350 by sofar.
+
+## Convert to/from existing `auth.sqlite` file
+
+The script at `tools/auth-convert.py` can convert sqlite files from the default minetest `auth.sqlite` file format to the format that `sauth` uses, and back. To convert a file to the other format, use the provided Python3 script.
+
+To convert **to** sauth format, use the script as follows:
+
+    python3 auth-convert.py auth.sqlite
+
+The script will generate `out-sauth.sqlite` which can be copied to the world folder as `sauth.sqlite`.
+
+To convert **to** the default minetest auth sqlite format, use the script as follows:
+
+    python3 auth-convert.py sauth.sqlite
+
+The script will now generate `out-auth.sqlite` which can be copied to the world folder as `auth.sqlite`.
+
+After converting formats, make sure that you update `world.mt`, and enable or disable `load_mod_sauth` as needed.
+
