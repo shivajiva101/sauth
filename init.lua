@@ -1,4 +1,4 @@
--- sqlite3 auth handler mod for minetest voxel game
+-- sqlite3 auth handler mod with memory caching for minetest voxel game
 -- by shivajiva101@hotmail.com
 
 -- Expose handler functions
@@ -15,7 +15,6 @@ if not ie then
 end
 
 -- read mt conf file settings
-local caching = minetest.settings:get_bool(MN .. '.caching', true)
 local max_cache_records = tonumber(minetest.settings:get(MN .. '.cache_max')) or 500
 local ttl = tonumber(minetest.settings:get(MN..'.cache_ttl')) or 86400 -- defaults to 24 hours
 local owner = minetest.settings:get("name")
@@ -54,22 +53,31 @@ end
 -- Cache handling
 local cap = 0
 
---- Create cache on load
+--- Create cache when mod loads
 local function create_cache()
 	local q = "SELECT max(last_login) AS result FROM auth;"
 	local it, state = db:nrows(q)
 	local last = it(state)
-	if last and last.result ~= nil then
+	if last and last.result then
 		last = last.result - ttl
-		q = ([[SELECT *	FROM auth WHERE last_login > %s LIMIT %s;
+		q = ([[SELECT * FROM auth WHERE last_login > %s LIMIT %s;
 		]]):format(last, max_cache_records)
 		for row in db:nrows(q) do
 			cache[row.name] = {
+				id = row.id,
 				password = row.password,
-				privileges = minetest.string_to_privs(row.privileges),
+				privileges = {},
 				last_login = row.last_login
 			}
 			cap = cap + 1
+		end
+		local r = {}
+		for k,v in pairs(cache) do
+			q = ("SELECT * FROM user_privileges WHERE id = %i;"):format(v.id)
+			for row in db:nrows(q) do
+				r[row.privilege] = true
+			end
+			cache[k].privileges = r
 		end
 	end
 	minetest.log("action", "[sauth] caching " .. cap .. " records.")
@@ -92,19 +100,20 @@ end
 
 -- Define db tables
 local create_db = [[
-CREATE TABLE IF NOT EXISTS auth (name VARCHAR(32) PRIMARY KEY,
-password VARCHAR(512), privileges VARCHAR(512), last_login INTEGER);
-
-CREATE INDEX IF NOT EXISTS idx_auth_name ON auth(name);
-CREATE INDEX IF NOT EXISTS idx_auth_lastlogin ON auth(last_login);
-
-CREATE TABLE IF NOT EXISTS _s (import BOOLEAN, db_version VARCHAR (6));
+CREATE TABLE IF NOT EXISTS auth (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name VARCHAR(32) UNIQUE,
+	password VARCHAR(512),
+	last_login INTEGER);
+CREATE TABLE IF NOT EXISTS user_privileges (
+	id INTEGER,
+	privilege VARCHAR(32),
+	PRIMARY KEY (id, privilege) CONSTRAINT fk_id FOREIGN KEY (id)
+	REFERENCES auth (id) ON DELETE CASCADE);
 ]]
 db_exec(create_db)
 
-if caching then
-	create_cache()
-end
+create_cache()
 
 --[[
 ###########################
@@ -112,10 +121,10 @@ end
 ###########################
 ]]
 
---- Get Player db record
+--- Get auth table record for name
 ---@param name string
----@return table pairs
-local function get_player_record(name)
+---@return keypair table
+local function get_auth_record(name)
 	local query = ([[
 	    SELECT * FROM auth WHERE name = '%s' LIMIT 1;
 	]]):format(name)
@@ -124,7 +133,31 @@ local function get_player_record(name)
 	return row
 end
 
---- Check db for match
+--- Get privileges from user_privileges table for id
+---@param id integer
+---@return keypairs table or nil
+local function get_privs(id)
+	local q = ([[
+	    SELECT * FROM user_privileges WHERE id = %i;
+	]]):format(id)
+	local r = {}
+	for row in db:nrows(q) do
+		r[row.privilege] = true
+	end
+	return r
+end
+
+--- Get id from player name
+---@param name string
+---@return id integer or nil
+local function get_id(name)
+	local q = ("SELECT * FROM auth WHERE name = '%s';"):format(name)
+	local it, state = db:nrows(q)
+	local row = it(state)
+	return row.id
+end
+
+--- Check db for matching name
 ---@param name string
 ---@return table or nil
 local function check_name(name)
@@ -136,18 +169,6 @@ local function check_name(name)
 	local it, state = db:nrows(query)
 	local row = it(state)
 	return row
-end
-
---- Fetch setting
----@param column_name string
----@return table pairs
-local function get_setting(column_name)
-	local query = ([[
-		SELECT %s FROM _s
-	]]):format(column_name)
-	local it, state = db:nrows(query)
-	local row = it(state)
-	if row then return row[column_name] end
 end
 
 --- Search for records where the name is like param string
@@ -185,7 +206,7 @@ end
 --- Add auth record to database
 ---@param name string
 ---@param password string
----@param privs string
+---@param privs pairs table
 ---@param last_login integer
 ---@return boolean
 ---@return string error message
@@ -194,28 +215,26 @@ local function add_player_record(name, password, privs, last_login)
 		INSERT INTO auth (
 		name,
 		password,
-		privileges,
 		last_login
-		) VALUES ('%s','%s','%s',%i)
-	]]):format(name, password, privs, last_login)
-	return db_exec(stmt)
-end
-
---- Add setting to the database
----@param name string
----@param val any
----@return boolean
----@return string error message
-local function add_setting(name, val)
-	local stmt = ([[
-		INSERT INTO _s (%s) VALUES ('%s')
-	]]):format(name, val)
-	return db_exec(stmt)
-end
-
--- Add db version to settings
-if not get_setting('db_version') then
-	add_setting('db_version', '1.1')
+		) VALUES ('%s','%s', %i)
+	]]):format(name, password, last_login)
+	local r, e = db_exec(stmt)
+	if r then
+		-- add privileges
+		local str = {}
+		local id = db:last_insert_rowid()
+		for k,v in pairs(privs) do
+			str[#str + 1] = ([[
+				INSERT INTO user_privileges (
+				id,
+				privilege
+				) VALUES (%i, '%s');
+			]]):format(id, k)
+		end
+		return db_exec(table.concat(str, "\n"))
+	else
+		return r, e
+	end
 end
 
 
@@ -251,14 +270,29 @@ end
 
 --- Update privileges for a player
 ---@param name string
----@param privs string
+---@param privs pair table
 ---@return boolean
 ---@return string error message
 local function update_privileges(name, privs)
+	local id = get_id(name)
 	local stmt = ([[
-		UPDATE auth SET privileges = '%s' WHERE name = '%s'
-	]]):format(privs,name)
-	return db_exec(stmt)
+		DELETE FROM user_privileges WHERE id = %i;
+	]]):format(id)
+	local r, e = db_exec(stmt)
+	if r == true then
+		local str = {}
+		for k,v in pairs(privs) do
+			str[#str + 1] = ([[
+				INSERT INTO user_privileges (
+				id,
+				privilege
+				) VALUES (%i, '%s');
+			]]):format(id, k)
+		end
+		return db_exec(table.concat(str, "\n"))
+	else
+		return r, e
+	end
 end
 
 
@@ -274,7 +308,7 @@ end
 ---@return string error message
 local function del_record(name)
 	local stmt = ([[
-		DELETE FROM auth WHERE name = '%s'
+		DELETE FROM auth WHERE name = '%s';
 	]]):format(name)
 	return db_exec(stmt)
 end
@@ -286,12 +320,21 @@ end
 ###################
 ]]
 
+--- Returns a complete player record
+---@param name string
+---@return keypair table or nil
+local function get_player_record(name)
+	local r = get_auth_record(name)
+	if r then r.privileges = get_privs(r.id) end
+	return r
+end
+
 --- Get Player db record
 ---@param name string
----@return table pairs
+---@return keypair table
 local function get_record(name)
-	-- Prioritise cache if enabled
-	if caching and cache[name] then return cache[name] end
+	-- Prioritise cache
+	if cache[name] then return cache[name] end
 	return get_player_record(name)
 end
 
@@ -302,12 +345,10 @@ end
 ---@return string error message
 local function update_login(name)
 	local ts = os.time()
-	if caching and cache[name] then
+	if cache[name] then
 		cache[name].last_login = ts
 	else
-		if caching then
-			minetest.get_auth_handler().get_auth(name)
-		end
+		sauth.auth_handler.get_auth(name)
 	end
 	return update_auth_login(name, ts)
 end
@@ -325,19 +366,21 @@ sauth.auth_handler = {
 	--- Prioritises cached data over repeated db searches
 	---@param name string
 	---@param add_to_cache boolean optional - default is true
-	---@return table of pairs
+	---@return keypairs table
 	get_auth = function(name, add_to_cache)
 
 		-- Check param
 		assert(type(name) == 'string')
 
-		-- if an auth record exists in the cache the only
-		-- other check reqd is that the owner has all privs
-		if caching and cache[name] then
+		-- if an auth record is cached ensure
+		-- the owner is granted admin privs
+		if cache[name] then
 			if not owner_privs_cached and name == owner then
-				-- grant all privs
+				-- grant admin privs
 				for priv, def in pairs(minetest.registered_privileges) do
-					cache[name].privileges[priv] = true
+					if def.give_to_admin then
+						cache[name].privileges[priv] = true
+					end
 				end
 				owner_privs_cached = true
 			end
@@ -348,7 +391,7 @@ sauth.auth_handler = {
 		if name:find("%'") then return nil end
 
 		-- Assert caching on missing param
-		add_to_cache = add_to_cache or caching
+		add_to_cache = add_to_cache or true
 
 		-- Check db for matching record
 		local auth_entry = get_player_record(name)
@@ -357,14 +400,9 @@ sauth.auth_handler = {
 		if not auth_entry then return nil end
 
 		-- Make a copy of the players privilege table.
-		-- Data originating from the db is a string
-		-- so it must be cast to a table
-		local privileges
-		if type(auth_entry.privileges) == "string" then
-			-- Reconstruct table using minetest function
-			privileges = minetest.string_to_privs(auth_entry.privileges)
-		else
-			privileges = auth_entry.privileges -- cached
+		local privileges ={}
+		for priv, _ in pairs(auth_entry.privileges) do
+			privileges[priv] = true
 		end
 
 		-- If singleplayer, grant privileges marked give_to_singleplayer
@@ -378,7 +416,9 @@ sauth.auth_handler = {
 		-- Grant owner all privileges
 		elseif name == owner then
 			for priv, def in pairs(minetest.registered_privileges) do
-				privileges[priv] = true
+				if def.give_to_admin then
+					privileges[priv] = true
+				end
 			end
 		end
 
@@ -388,13 +428,14 @@ sauth.auth_handler = {
 			privileges = privileges,
 			last_login = tonumber(auth_entry.last_login)}
 
-		-- Cache if reqd, mt core calls this function constantly
-		-- so minimise the codes path to speed things up
+		-- Conditionally retrieves records without caching
+		-- by passing false as the second param
 		if add_to_cache then
 			cache[name] = record
 			cap = cap + 1
-			return record
 		end
+
+		return record
 	end,
 
 	--- Create a new auth entry
@@ -404,19 +445,18 @@ sauth.auth_handler = {
 	create_auth = function(name, password)
 		assert(type(name) == 'string')
 		assert(type(password) == 'string')
-		local ts = os.time()
-		local privs = minetest.settings:get("default_privs")
-		add_player_record(name,password,privs,ts)
-		if caching then
+		minetest.log('info', "[sauth] authentification handler adding player '"..name.."'")
+		local privs = minetest.string_to_privs(minetest.settings:get("default_privs"))
+		local res, err = add_player_record(name,password,privs,-1)
+		if res then
 			cache[name] = {
 				password = password,
-				privileges = minetest.string_to_privs(privs),
+				privileges = privs,
 				last_login = -1 -- defer
 			}
 		end
-		return true
+		return res, err
 	end,
-
 
 	--- Delete an auth entry
 	---@param name string
@@ -424,13 +464,15 @@ sauth.auth_handler = {
 	delete_auth = function(name)
 		assert(type(name) == 'string')
 		local record = get_record(name)
+		local res = false
 		if record then
-			del_record(name)
-			if caching then cache[name] = nil end
-			minetest.log("info", "[sauth] Db record for " .. name .. " was deleted!")
-			return true
+			minetest.log('info', "[sauth] authentification handler deleting player '"..name.."'")
+			res = del_record(name)
+			if res then
+				cache[name] = nil
+			end
 		end
-		return false
+		return res
 	end,
 
 	--- Set password for an auth record
@@ -452,7 +494,7 @@ sauth.auth_handler = {
 
 	--- Set privileges for an auth record
 	---@param name string
-	---@param privileges string
+	---@param privileges keypairs table
 	---@return boolean
 	set_privileges = function(name, privileges)
 		assert(type(name) == 'string')
@@ -462,7 +504,6 @@ sauth.auth_handler = {
 			auth_entry = sauth.auth_handler.create_auth(name,
 					minetest.get_password_hash(name,
 						minetest.settings:get("default_password")))
-
 		end
 		-- Run grant callbacks
 		for priv, _ in pairs(privileges) do
@@ -479,7 +520,7 @@ sauth.auth_handler = {
 		-- Ensure owner has ability to grant
 		if name == owner then privileges.privs = true end
 		-- Update record
-		update_privileges(name, minetest.privs_to_string(privileges))
+		update_privileges(name, privileges)
 		if cache[name] then cache[name].privileges = privileges end
 		minetest.notify_authentication_modified(name)
 		return true
@@ -529,13 +570,11 @@ sauth.auth_handler = {
 minetest.register_authentication_handler(sauth.auth_handler)
 
 -- Log event as minetest registers silently
-minetest.log('action', "[sauth] now registered as the authentication handler")
+minetest.log('action', "[sauth] registered as the authentication handler!")
 
 minetest.register_on_prejoinplayer(function(name, ip)
 	local r = get_record(name)
-	if r ~= nil then
-		return
-	end
+	if r ~= nil then return	end
 	-- Check name isn't registered
 	local chk = check_name(name)
 	if chk then
@@ -547,7 +586,10 @@ minetest.register_on_prejoinplayer(function(name, ip)
 end)
 
 minetest.register_on_joinplayer(function(player)
-	if caching then trim_cache() end
+	local name = player:get_player_name()
+	local r = get_record(name)
+	if r ~= nil then sauth.auth_handler.record_login(name) end
+	trim_cache()
 end)
 
 minetest.register_on_shutdown(function()
