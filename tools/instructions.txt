@@ -1,0 +1,11 @@
+Copy the sauth.sqlite file into this folder and run the python script as follows:
+
+	python3 auth-convert.py
+
+The script will create a new database file named out-auth.sqlite. How fast is it?
+In testing it processed a db with 305,000 records in ~10 seconds.
+Rename this file to sauth.sqlite to use with sauth v2.0 OR if you
+want to migrate your data for use with the builtin auth handler
+rename it auth.sqlite.
+
+Remember to backup your original file before replacing it with the converted db!
