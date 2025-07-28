@@ -171,8 +171,8 @@ local function create_cache()
 			}
 			cap = cap + 1
 		end
-		local r = {}
 		for k,v in pairs(cache) do
+			local r = {}
 			q = ("SELECT * FROM user_privileges WHERE id = %i;"):format(v.id)
 			for row in db:nrows(q) do
 				r[row.privilege] = true
